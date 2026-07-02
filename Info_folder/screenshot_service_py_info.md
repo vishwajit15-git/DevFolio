@@ -4,13 +4,15 @@
 `backend/screenshot_service.py`
 
 ## Purpose
-Uses Playwright to launch a headless Chromium browser, navigate to each developer portfolio URL, and capture incremental screenshots. Because the repository contains 1,806 uniquely built portfolios—many featuring continuous background videos, active WebSockets, or infinite data polling—relying on standard `networkidle` states is insufficient.
+Uses Playwright to launch a headless Chromium browser, navigate to each developer portfolio URL, and capture incremental screenshots. 
 
-To create a universal capture system, this script implements:
-1.  **Request Blocking (Network Routing):** Automatically intercepts and aborts any requests for `media` (videos/audio) or `websocket` connections. This prevents infinite loading loops in the background.
-2.  **DOM Stability Verification:** Instead of watching network traffic, it injects a JavaScript `MutationObserver`. It monitors the HTML structure and waits until the DOM has completely stopped changing for 2.5 seconds. This guarantees all entry animations, spinners, and loading screens have physically settled.
+Because the repository contains 1,806 uniquely built portfolios, this script implements a **4-Layer Enterprise Universal Capture Strategy** to defeat complex loading screens, infinite background media, and scroll-locked content:
+1.  **Media/WebSocket Routing:** Intercepts and aborts any requests for `media` (videos/audio) or `websocket` connections to prevent infinite loading loops.
+2.  **Global CSS Injection (The Silver Bullet):** Injects a `<style>` tag into the page before it loads. It forces `transition: none` and `animation-duration: 0.01ms` globally. This makes all CSS-based progress bars instantly jump to 100%. It also overrides opacity and transforms on common scroll-reveal classes (e.g., `[data-aos]`) to ensure content is immediately visible.
+3.  **JS Loader Bypass:** Force-hides any remaining DOM elements that contain "load" or "preloader" in their ID or class.
+4.  **DOM Stability Verification:** Uses a `MutationObserver` to wait until the physical HTML structure stops changing for 2.5 seconds (or hits a 30s hard timeout), guaranteeing the page has settled.
 
-After stability is reached, it takes 5 incremental screenshots per website, pausing briefly between scrolls. Screenshots are cached locally in `backend/screenshots/`.
+After stability is reached, it takes 5 incremental screenshots per website. Screenshots are cached locally in `backend/screenshots/`.
 
 ## Dependencies
 - `playwright` — Browser automation library (Python binding) for headless screenshot capture
@@ -29,167 +31,123 @@ After stability is reached, it takes 5 incremental screenshots per website, paus
 Converts a developer name into a filesystem-safe filename by replacing any non-alphanumeric character with an underscore and lowercasing.
 
 ### `wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500)`
-Injects a `MutationObserver` script into the browser context. The script resets a timer every time the DOM mutates. It resolves the Promise (unblocking the Python script) only when the DOM has remained unchanged for `idle_time_ms` (2.5 seconds).
+Injects a `MutationObserver` script into the browser context. It resolves the Promise only when the DOM has remained unchanged for 2.5 seconds, or forcibly resolves after 30 seconds to prevent hangs from continuous animations.
 
 ### `capture_universal_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]`
-Launches a headless Chromium browser, aborts media/websocket requests, navigates to the portfolio URL, waits for DOM stability, and takes incremental screenshots by scrolling down.
-- **url:** The portfolio URL to capture.
-- **developer_name:** Used to generate the filename.
-- **num_shots:** Number of incremental screenshots to take (default 5).
-Returns a list of filepaths of the saved screenshots.
+Launches a headless Chromium browser and executes the 4-layer capture strategy to capture 5 high-quality incremental screenshots. Returns a list of filepaths.
 
-### `run_batch_job(limit: int = 3)`
-Fetches portfolio data and captures universal screenshots in batch for testing. Limit is set to 3 to avoid long execution times during testing.
+### `run_batch_job(limit: int = 5)`
+Fetches portfolio data and captures universal screenshots in batch for testing. Selects `limit` random portfolios to process.
 
 ## Line-by-Line Explanation
 
 ```python
-# Lines 1-6: Module docstring
+# Lines 1-8: Module docstring
 """
 DevFolio Backend - Screenshot Service
-Uses Playwright to generate and cache incremental screenshots of developer portfolios.
-Implements Universal Capture strategies (DOM Stability, Request Blocking) for maximum reliability.
-Runs as a standalone batch job or can be imported by the FastAPI server.
+...
 """
 ```
-- **Lines 1–6:** Module-level docstring reflecting the new Universal Capture logic.
+- Module-level docstring reflecting the new 4-layer strategy.
 
 ```python
-# Lines 8-11: Imports
+# Lines 10-21: Imports and Directory Setup
 import asyncio
-import os
-import re
-from playwright.async_api import async_playwright
-```
-- Standard imports.
-
-```python
-# Lines 13-18: Directory Setup
+...
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SCREENSHOTS_DIR = os.path.join(SCRIPT_DIR, "screenshots")
-os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 ```
-- Ensures the cache directory exists and uses absolute paths.
+- Standard imports and absolute path setup.
 
 ```python
-# Lines 21-26: Filename Sanitizer
-def _safe_filename(name: str) -> str:
-    """..."""
-    return re.sub(r'[^a-zA-Z0-9]', '_', name).lower()
-```
-- Sanitizes the developer name.
-
-```python
-# Lines 29-55: DOM Stability Injector
+# Lines 27-60: DOM Stability Injector
 async def wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500):
-    """..."""
-    await page.evaluate("""
-        (idle_time_ms) => {
-            return new Promise((resolve) => {
-                let timeout;
-                const observer = new MutationObserver(() => {
-                    clearTimeout(timeout);
-                    timeout = setTimeout(() => {
-                        observer.disconnect();
-                        resolve();
-                    }, idle_time_ms);
-                });
-                observer.observe(document.body, { childList: true, subtree: true, attributes: true });
-                // Initial timer in case the page is already static
-                timeout = setTimeout(() => {
-                    observer.disconnect();
-                    resolve();
-                }, idle_time_ms);
-            });
-        }
-    """, idle_time_ms)
+    ...
 ```
-- **Lines 29-55:** This is the core of the DOM Stability method. It executes raw JavaScript in the browser. It creates a `MutationObserver` that watches `document.body`. Any time an element is added, removed, or changed, it clears and restarts the 2.5-second timer. The python script will wait at this line until the timer successfully runs out.
+- Implements the `MutationObserver` with the hard 30-second timeout fallback.
 
 ```python
-# Lines 58-70: Main Capture Function Setup & Caching
+# Lines 63-82: Main Capture Function Setup & Caching
 async def capture_universal_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]:
     ...
 ```
 - Skips capturing if all 5 parts are already present on disk.
 
 ```python
-# Lines 72-76: Playwright Initialization
-    saved_paths = []
-
+# Lines 84-88: Playwright Initialization
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page(viewport={"width": 1920, "height": 1080})
 ```
-- Initializes the headless browser with a strict 1080p resolution.
+- Initializes the headless browser.
 
 ```python
-# Lines 78-88: Network Routing & Navigation
-        try:
-            print(f"Visiting {developer_name}'s portfolio...")
-            
-            # 1. Block heavy media that causes infinite loading loops
+# Lines 93-97: Strategy 1 - Media Routing
             await page.route("**/*", lambda route: route.abort() 
                 if route.request.resource_type in ["media", "websocket"] 
                 else route.continue_())
-
-            # 2. Standard load (don't wait for network idle)
-            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
 ```
-- **Lines 82-85:** Sets up a request interceptor. If a website tries to load a `media` file (like a background video) or open a `websocket`, Playwright instantly aborts it. This prevents the browser from getting stuck loading heavy, continuous assets.
-- **Line 88:** Navigates to the URL. Uses `wait_until="domcontentloaded"`, which only waits for the raw HTML to arrive, rather than waiting for the entire network to idle.
+- Kills heavy infinite background media and websocket data streams.
 
 ```python
-# Lines 90-93: Triggering DOM Stability
-            # 3. Wait for the page's HTML to physically stop changing
+# Lines 99-119: Strategy 2 - Global CSS Injection
+            await page.add_init_script("""
+                const style = document.createElement('style');
+                style.innerHTML = `
+                    *, *::before, *::after {
+                        transition: none !important;
+                        animation: none !important;
+                        ...
+                    }
+                    [data-aos], .reveal, .fade-in, .hidden, .opacity-0 {
+                        opacity: 1 !important;
+                        ...
+                    }
+                `;
+                document.addEventListener('DOMContentLoaded', () => document.head.appendChild(style));
+            """)
+```
+- **The Silver Bullet.** This script executes before the page renders. It overrides all CSS animation timers to 0, forcing progress bars to instantly skip to 100%. It also targets common classes used by scroll-reveal libraries (like AOS) and forces them to have `opacity: 1`. This stops the scraper from capturing empty white pages.
+
+```python
+# Lines 121-127: Navigation & Strategy 3 - JS Loader Bypass
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            
+            await page.evaluate("""
+                const loaders = document.querySelectorAll('[class*="load"], [id*="load"], [class*="preloader"]');
+                loaders.forEach(loader => loader.style.display = 'none');
+            """)
+```
+- Navigates and forcefully hides any remaining sticky loader overlays.
+
+```python
+# Lines 129-142: Strategy 4 - DOM Stability & Incremental Capture Loop
             print("  -> Waiting for animations and loading screens to settle (DOM Stability)...")
             await wait_for_dom_stability(page)
-```
-- **Line 93:** Calls the custom JS injector and waits for the page to visually settle.
-
-```python
-# Lines 95-104: Incremental Capture Loop
+            
             for i in range(1, num_shots + 1):
-                filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
-                
-                # CAPTURE: Take a screenshot of just the current visible window (not full page)
-                await page.screenshot(path=filepath, full_page=False)
-                print(f"  -> Saved: {filepath}")
-                saved_paths.append(filepath)
-                
-                # SCROLL: Scroll down by exactly one viewport height
+                ...
                 await page.evaluate("window.scrollBy(0, window.innerHeight)")
-                # A smaller wait between scroll shots for standard scroll animations
                 await page.wait_for_timeout(1000) 
 ```
-- **Line 99:** Captures the current visible area.
-- **Line 103:** Scrolls down by `window.innerHeight`.
-- **Line 105:** A 1-second wait to allow scroll-triggered animations to play.
+- Waits for the physical DOM structure to stop changing, then captures the 5 scrolling sections.
 
 ```python
-# Lines 107-113: Error Handling & Cleanup
-            return saved_paths
+# Lines 144-151: Error Handling & Cleanup
         except Exception as e:
-            print(f"  -> Failed ({developer_name}): {e}")
+            print(f"  -> Failed ({developer_name}) - Will use Fallback UI. Error: {e}")
             return saved_paths
         finally:
             await browser.close()
 ```
-- Catches errors and ensures browser shutdown.
+- Robust error handling. If a site completely blocks the bot, we return what we have (or an empty list). The frontend will be instructed to show a fallback UI instead of crashing.
 
 ```python
-# Lines 116-144: Batch Job Runner
-async def run_batch_job(limit: int = 3):
+# Lines 154-182: Batch Job Runner
+async def run_batch_job(limit: int = 5):
     ...
 ```
-- Test runner logic for processing the first 3 portfolios.
-
-```python
-# Lines 147-148: Entry point
-if __name__ == "__main__":
-    asyncio.run(run_batch_job(limit=3))
-```
-- Standard Python run block.
+- Test runner logic for processing random portfolios.
 
 ---
-*Last Updated: 2026-07-02 (Day 3 — Implemented Universal Capture with DOM Stability and Media Routing)*
+*Last Updated: 2026-07-02 (Day 3 — Implemented Global CSS Injection)*

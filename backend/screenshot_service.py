@@ -1,8 +1,12 @@
 """
 DevFolio Backend - Screenshot Service
 Uses Playwright to generate and cache incremental screenshots of developer portfolios.
-Implements Universal Capture strategies (DOM Stability, Request Blocking) for maximum reliability.
-Runs as a standalone batch job or can be imported by the FastAPI server.
+
+Enterprise Scraper Implementations:
+1. Media/WebSocket Routing (Prevents infinite loading loops)
+2. Global CSS Injection (Instantly kills animations, reveals scroll-locked content)
+3. DOM Stability Observer (Waits for physical rendering to settle)
+4. JS Loader Bypass (Force-hides stuck loader overlays)
 """
 
 import asyncio
@@ -14,22 +18,17 @@ from playwright.async_api import async_playwright
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SCREENSHOTS_DIR = os.path.join(SCRIPT_DIR, "screenshots")
 
-# Ensure the screenshots folder exists
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 
 
 def _safe_filename(name: str) -> str:
-    """
-    Converts a developer name into a filesystem-safe filename.
-    Replaces any non-alphanumeric character with an underscore and lowercases.
-    """
     return re.sub(r'[^a-zA-Z0-9]', '_', name).lower()
 
 
 async def wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500):
     """
     Injects a script to wait until the DOM stops mutating for `idle_time_ms`,
-    or forces a resolution after `timeout_ms` to prevent infinite hangs on continuously animating sites.
+    or forces a resolution after `timeout_ms` to prevent infinite hangs.
     """
     await page.evaluate("""
         ({idle_time_ms, timeout_ms}) => {
@@ -39,7 +38,6 @@ async def wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500):
                 
                 const observer = new MutationObserver(() => {
                     clearTimeout(idleTimeout);
-                    // Reset the timer every time the screen changes
                     idleTimeout = setTimeout(() => {
                         observer.disconnect();
                         clearTimeout(forceTimeout);
@@ -49,14 +47,12 @@ async def wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500):
                 
                 observer.observe(document.body, { childList: true, subtree: true, attributes: true });
                 
-                // Initial timer in case the page is already static
                 idleTimeout = setTimeout(() => {
                     observer.disconnect();
                     clearTimeout(forceTimeout);
                     resolve();
                 }, idle_time_ms);
                 
-                // Hard timeout in case of infinitely mutating DOMs (e.g. blinking cursors, ticking clocks)
                 forceTimeout = setTimeout(() => {
                     observer.disconnect();
                     clearTimeout(idleTimeout);
@@ -68,21 +64,8 @@ async def wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500):
 
 
 async def capture_universal_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]:
-    """
-    Launches a headless Chromium browser, navigates to the portfolio URL,
-    waits for DOM stability, and takes incremental screenshots by scrolling down.
-
-    Args:
-        url: The portfolio URL to capture.
-        developer_name: Used to generate the filename.
-        num_shots: Number of incremental screenshots to take.
-
-    Returns:
-        A list of filepaths of the saved screenshots.
-    """
     safe_name = _safe_filename(developer_name)
     
-    # Check if all screenshots are already cached
     cached_paths = []
     for i in range(1, num_shots + 1):
         filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
@@ -102,56 +85,79 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
         try:
             print(f"Visiting {developer_name}'s portfolio...")
             
-            # 1. Block heavy media that causes infinite loading loops
+            # STRATEGY 1: Media/WebSocket Routing
+            # Aborts heavy media that blocks the page load event or causes infinite polling
             await page.route("**/*", lambda route: route.abort() 
                 if route.request.resource_type in ["media", "websocket"] 
                 else route.continue_())
 
-            # 2. Standard load (don't wait for network idle)
+            # STRATEGY 2: Global CSS Injection
+            # Injected before the page loads. Kills all animations/transitions so progress bars instantly 
+            # jump to 100%, and forces scroll-reveal libraries (like AOS) to make content visible immediately.
+            await page.add_init_script("""
+                const style = document.createElement('style');
+                style.innerHTML = `
+                    *, *::before, *::after {
+                        transition: none !important;
+                        animation: none !important;
+                        animation-delay: -0.01ms !important;
+                        animation-duration: 0.01ms !important;
+                        animation-iteration-count: 1 !important;
+                        scroll-behavior: auto !important;
+                    }
+                    [data-aos], .reveal, .fade-in, .hidden, .opacity-0 {
+                        opacity: 1 !important;
+                        transform: none !important;
+                        visibility: visible !important;
+                    }
+                `;
+                document.addEventListener('DOMContentLoaded', () => document.head.appendChild(style));
+            """)
+
             await page.goto(url, wait_until="domcontentloaded", timeout=20000)
             
-            # 3. Wait for the page's HTML to physically stop changing
+            # STRATEGY 3: JS Loader Bypass
+            # Force-hide persistent loader overlays
+            await page.evaluate("""
+                const loaders = document.querySelectorAll('[class*="load"], [id*="load"], [class*="preloader"]');
+                loaders.forEach(loader => loader.style.display = 'none');
+            """)
+
+            # STRATEGY 4: DOM Stability
             print("  -> Waiting for animations and loading screens to settle (DOM Stability)...")
             await wait_for_dom_stability(page)
             
             for i in range(1, num_shots + 1):
                 filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
                 
-                # CAPTURE: Take a screenshot of just the current visible window (not full page)
                 await page.screenshot(path=filepath, full_page=False)
                 print(f"  -> Saved: {filepath}")
                 saved_paths.append(filepath)
                 
-                # SCROLL: Scroll down by exactly one viewport height
                 await page.evaluate("window.scrollBy(0, window.innerHeight)")
-                # A smaller wait between scroll shots for standard scroll animations
                 await page.wait_for_timeout(1000) 
                 
             return saved_paths
+            
         except Exception as e:
-            print(f"  -> Failed ({developer_name}): {e}")
+            print(f"  -> Failed ({developer_name}) - Will use Fallback UI. Error: {e}")
+            # If all strategies fail (e.g. strict bot blockers), we return whatever we captured (if any)
+            # The frontend will be designed to handle < 5 images by showing a fallback gradient UI.
             return saved_paths
         finally:
             await browser.close()
 
 
-async def run_batch_job(limit: int = 3):
-    """
-    Fetches portfolio data and captures universal screenshots in batch.
-
-    Args:
-        limit: Number of portfolios to process (default 3 for testing).
-    """
-    # Import here to support both standalone and package execution
+async def run_batch_job(limit: int = 5):
     try:
         from backend.fetch_data import get_portfolio_data
     except ImportError:
         from fetch_data import get_portfolio_data
 
+    import random
     print("Fetching portfolio data from GitHub...")
     portfolios = get_portfolio_data()
     
-    import random
     batch = random.sample(portfolios, min(limit, len(portfolios)))
     print(f"Found {len(portfolios)} portfolios. Processing {limit} random ones...\n")
 
