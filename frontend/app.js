@@ -29,6 +29,9 @@ async function loadPortfolios() {
         // Populate the role dropdown with unique roles
         populateRoleFilter(allPortfolios);
 
+        // Populate alphabet slider
+        populateAlphabetSlider();
+
         // Render the initial grid
         renderGrid(allPortfolios);
 
@@ -141,15 +144,59 @@ function populateRoleFilter(portfolios) {
 }
 
 
+// ─── Alphabet Slider ─────────────────────────────
+let selectedLetter = null;
+const alphabetSlider = document.getElementById('alphabet-slider');
+
+function populateAlphabetSlider() {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    letters.push('#'); // For names starting with numbers/symbols
+
+    letters.forEach(letter => {
+        const el = document.createElement('div');
+        el.className = 'alphabet-letter';
+        el.textContent = letter;
+        el.dataset.letter = letter;
+
+        el.addEventListener('click', () => {
+            // Toggle selection
+            if (selectedLetter === letter) {
+                selectedLetter = null;
+                el.classList.remove('active');
+            } else {
+                selectedLetter = letter;
+                document.querySelectorAll('.alphabet-letter').forEach(l => l.classList.remove('active'));
+                el.classList.add('active');
+            }
+            applyFilters();
+        });
+
+        alphabetSlider.appendChild(el);
+    });
+}
+
+
 // ─── Filter Logic ────────────────────────────────
 function applyFilters() {
     const searchTerm = searchInput.value.toLowerCase().trim();
     const selectedRole = roleFilter.value;
 
     const filtered = allPortfolios.filter(p => {
-        const nameMatch = p.name.toLowerCase().includes(searchTerm);
+        const nameLower = p.name.toLowerCase();
+        const nameMatch = nameLower.includes(searchTerm);
         const roleMatch = selectedRole === 'all' || (p.role || 'Developer').toLowerCase() === selectedRole;
-        return nameMatch && roleMatch;
+        
+        let letterMatch = true;
+        if (selectedLetter) {
+            const firstChar = nameLower.charAt(0);
+            if (selectedLetter === '#') {
+                letterMatch = !/[a-z]/.test(firstChar);
+            } else {
+                letterMatch = firstChar === selectedLetter.toLowerCase();
+            }
+        }
+
+        return nameMatch && roleMatch && letterMatch;
     });
 
     renderGrid(filtered);
