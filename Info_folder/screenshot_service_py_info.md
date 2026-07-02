@@ -4,7 +4,11 @@
 `backend/screenshot_service.py`
 
 ## Purpose
-Uses Playwright to launch a headless Chromium browser, navigate to each developer portfolio URL, and capture incremental screenshots. Instead of taking a single full-page screenshot (which often misses scroll-triggered animations), the script takes 5 incremental screenshots per website. It pauses for 2.5 seconds to let CSS/JS animations finish loading, takes a screenshot of the visible window, and then scrolls down by exactly one viewport height. Screenshots are cached locally in `backend/screenshots/`.
+Uses Playwright to launch a headless Chromium browser, navigate to each developer portfolio URL, and capture incremental screenshots. To handle diverse loading screens across 1,806 portfolios, the script uses two key bypass methods:
+1.  **`networkidle` Wait State:** Pauses the capture until all network requests have finished (meaning heavy assets are downloaded).
+2.  **JavaScript Inject:** Searches for and hides DOM elements that look like loading screens (`[class*="load"]`, etc.) before capturing.
+
+After ensuring the page is visible, it takes 5 incremental screenshots per website, pausing for 1.5 seconds between scrolls to allow scroll-triggered animations to load. Screenshots are cached locally in `backend/screenshots/`.
 
 ## Dependencies
 - `playwright` — Browser automation library (Python binding) for headless screenshot capture
@@ -23,7 +27,7 @@ Uses Playwright to launch a headless Chromium browser, navigate to each develope
 Converts a developer name into a filesystem-safe filename by replacing any non-alphanumeric character with an underscore and lowercasing.
 
 ### `capture_incremental_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]`
-Launches a headless Chromium browser, navigates to the portfolio URL, and takes incremental screenshots by scrolling down to allow animations to load.
+Launches a headless Chromium browser, navigates to the portfolio URL, bypasses loaders, and takes incremental screenshots by scrolling down.
 - **url:** The portfolio URL to capture.
 - **developer_name:** Used to generate the filename.
 - **num_shots:** Number of incremental screenshots to take (default 5).
@@ -35,59 +39,51 @@ Fetches portfolio data and captures incremental screenshots in batch for testing
 ## Line-by-Line Explanation
 
 ```python
-# Lines 1-5: Module docstring
+# Lines 1-6: Module docstring
 """
 DevFolio Backend - Screenshot Service
 Uses Playwright to generate and cache incremental screenshots of developer portfolios.
+Includes network monitoring and JS injection to bypass loading screens.
 Runs as a standalone batch job or can be imported by the FastAPI server.
 """
 ```
-- **Lines 1–5:** Module-level docstring explaining this file handles incremental screenshot generation and caching.
+- **Lines 1–6:** Module-level docstring reflecting the new loading screen bypass logic.
 
 ```python
-# Lines 7-10: Imports
+# Lines 8-11: Imports
 import asyncio
 import os
 import re
 from playwright.async_api import async_playwright
 ```
-- **Line 7:** `asyncio` for running asynchronous Python code.
-- **Line 8:** `os` for filesystem path manipulation.
-- **Line 9:** `re` for sanitizing filenames using regex.
-- **Line 10:** `async_playwright` to launch and control the headless browser.
+- Standard imports.
 
 ```python
-# Lines 12-17: Directory Setup
-# Resolve the screenshots directory relative to this script's location
+# Lines 13-18: Directory Setup
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SCREENSHOTS_DIR = os.path.join(SCRIPT_DIR, "screenshots")
-
-# Ensure the screenshots folder exists
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 ```
-- **Lines 12-14:** Dynamically determines the absolute path to the `screenshots/` directory so the script works no matter where it is run from.
-- **Line 17:** Creates the directory if it doesn't already exist.
+- Ensures the cache directory exists and uses absolute paths.
 
 ```python
-# Lines 20-25: Filename Sanitizer
+# Lines 21-26: Filename Sanitizer
 def _safe_filename(name: str) -> str:
     """..."""
     return re.sub(r'[^a-zA-Z0-9]', '_', name).lower()
 ```
-- **Lines 20-25:** Helper function that takes a string like "John Doe" and returns "john_doe" to ensure the filename doesn't cause OS errors.
+- Sanitizes the developer name.
 
 ```python
-# Lines 28-39: Main Capture Function Setup
+# Lines 29-41: Main Capture Function Setup
 async def capture_incremental_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]:
     """..."""
 ```
-- **Line 28:** Main async function to capture the 5 screenshots.
+- The main capture function.
 
 ```python
-# Lines 40-50: Cache Checking
+# Lines 42-52: Cache Checking
     safe_name = _safe_filename(developer_name)
-    
-    # Check if all screenshots are already cached
     cached_paths = []
     for i in range(1, num_shots + 1):
         filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
@@ -98,82 +94,85 @@ async def capture_incremental_screenshots(url: str, developer_name: str, num_sho
         print(f"Cache hit for {developer_name}: {num_shots} parts.")
         return cached_paths
 ```
-- **Line 40:** Sanitizes the name.
-- **Lines 43-47:** Checks if all expected parts (1 through 5) already exist in the `screenshots/` directory.
-- **Lines 49-51:** If all parts are cached, skip capturing and return immediately.
+- Skips capturing if all 5 parts are already present on disk.
 
 ```python
-# Lines 52-56: Playwright Initialization
+# Lines 54-58: Playwright Initialization
     saved_paths = []
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page(viewport={"width": 1920, "height": 1080})
 ```
-- **Line 52:** List to hold newly saved paths.
-- **Line 54:** Initializes the Playwright async context.
-- **Line 55:** Launches the Chromium browser in headless mode.
-- **Line 56:** Creates a new page with a fixed `1920x1080` viewport, crucial for calculating consistent scrolls.
+- Initializes the headless browser with a strict 1080p resolution.
 
 ```python
-# Lines 58-61: Navigation
+# Lines 60-65: NetworkIdle Navigation
         try:
             print(f"Visiting {developer_name}'s portfolio...")
-            # 20-second timeout so one slow site doesn't freeze the whole batch
-            await page.goto(url, timeout=20000, wait_until="load")
+            # UPGRADE 1: Wait for 'networkidle' instead of just 'load'
+            # We give it a generous 30-second timeout for heavy 3D portfolios
+            await page.goto(url, wait_until="networkidle", timeout=30000) 
 ```
-- **Line 61:** Navigates to the URL with a 20-second timeout. `wait_until="load"` ensures basic assets have loaded.
+- **Line 65:** The first major upgrade. `wait_until="networkidle"` pauses execution until there are 0 network connections for at least 500ms, ensuring heavy assets (like WebGL scenes) are downloaded before capturing.
 
 ```python
-# Lines 63-75: Incremental Capture Loop
+# Lines 67-74: JavaScript Loader Bypass
+            # UPGRADE 2: Force-hide common loading screen overlays using JavaScript
+            await page.evaluate("""
+                const loaders = document.querySelectorAll('[class*="load"], [id*="load"], [class*="preloader"]');
+                loaders.forEach(loader => loader.style.display = 'none');
+            """)
+
+            # Wait an additional 2 seconds just in case the removal triggered a fade-in animation
+            await page.wait_for_timeout(2000) 
+```
+- **Lines 68-71:** Injects JS into the browser context. It queries for DOM elements whose class or ID contain "load" or "preloader", and sets their display to `none`. This blasts away sticky full-screen loaders that get stuck.
+- **Line 74:** A hard 2-second pause lets any reveal animations finish playing after the loader disappears.
+
+```python
+# Lines 76-86: Incremental Capture Loop
             for i in range(1, num_shots + 1):
                 filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
                 
-                # 1. WAIT: Pause for 2.5 seconds to let CSS/JS animations finish loading
-                await page.wait_for_timeout(2500) 
-                
-                # 2. CAPTURE: Take a screenshot of just the current visible window (not full page)
+                # CAPTURE: Take a screenshot of just the current visible window (not full page)
                 await page.screenshot(path=filepath, full_page=False)
                 print(f"  -> Saved: {filepath}")
                 saved_paths.append(filepath)
                 
-                # 3. SCROLL: Scroll down by exactly one viewport height
+                # SCROLL: Scroll down by exactly one viewport height
                 await page.evaluate("window.scrollBy(0, window.innerHeight)")
+                # A smaller wait between scroll shots for standard scroll animations
+                await page.wait_for_timeout(1500) 
 ```
-- **Line 63:** Loops 5 times.
-- **Line 67:** Waits 2.5 seconds to allow fade-ins or slide-ups to finish.
-- **Line 70:** Captures ONLY the visible viewport (full_page=False).
-- **Line 74:** Executes a JavaScript command in the browser to scroll down exactly one screen height (`window.innerHeight`).
+- **Line 81:** Captures the current visible area.
+- **Line 85:** Scrolls down by `window.innerHeight`.
+- **Line 87:** A 1.5-second wait to allow scroll-triggered animations to play.
 
 ```python
-# Lines 77-83: Cleanup
+# Lines 88-94: Error Handling & Cleanup
             return saved_paths
         except Exception as e:
-            print(f"  -> Failed ({developer_name}): {e}")
+            print(f"  -> Failed ({developer_name}). Timeout or bot block: {e}")
             return saved_paths
         finally:
             await browser.close()
 ```
-- **Line 80:** Catches timeout or network errors.
-- **Line 83:** Ensures the browser process is closed, even if an error occurs.
+- Catches errors and ensures browser shutdown.
 
 ```python
-# Lines 86-114: Batch Processing Loop
+# Lines 97-125: Batch Job Runner
 async def run_batch_job(limit: int = 3):
     ...
 ```
-- **Line 86:** Defines the batch runner.
-- **Lines 94-97:** Safely imports `get_portfolio_data`.
-- **Line 100:** Fetches the data.
-- **Line 103:** Slices the list to just the `limit` (first 3).
-- **Lines 106-116:** Iterates over the batch, calling `capture_incremental_screenshots`, and tracks success/failure.
+- Test runner logic for processing the first 3 portfolios.
 
 ```python
-# Lines 120-121: Execution Entry Point
+# Lines 128-129: Entry point
 if __name__ == "__main__":
     asyncio.run(run_batch_job(limit=3))
 ```
-- **Lines 120-121:** Runs the batch script locally with an `asyncio` event loop.
+- Standard Python run block.
 
 ---
-*Last Updated: 2026-07-02 (Day 3 — Implemented incremental screenshot capturing and scrolling)*
+*Last Updated: 2026-07-02 (Day 3 — Implemented loading screen bypass and networkidle)*

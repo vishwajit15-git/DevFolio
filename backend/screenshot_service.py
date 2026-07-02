@@ -1,6 +1,7 @@
 """
 DevFolio Backend - Screenshot Service
 Uses Playwright to generate and cache incremental screenshots of developer portfolios.
+Includes network monitoring and JS injection to bypass loading screens.
 Runs as a standalone batch job or can be imported by the FastAPI server.
 """
 
@@ -28,7 +29,7 @@ def _safe_filename(name: str) -> str:
 async def capture_incremental_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]:
     """
     Launches a headless Chromium browser, navigates to the portfolio URL,
-    and takes incremental screenshots by scrolling down to allow animations to load.
+    bypasses loaders, and takes incremental screenshots by scrolling down.
 
     Args:
         url: The portfolio URL to capture.
@@ -59,26 +60,36 @@ async def capture_incremental_screenshots(url: str, developer_name: str, num_sho
 
         try:
             print(f"Visiting {developer_name}'s portfolio...")
-            # 20-second timeout so one slow site doesn't freeze the whole batch
-            await page.goto(url, timeout=20000, wait_until="load")
+            # UPGRADE 1: Wait for 'networkidle' instead of just 'load'
+            # We give it a generous 30-second timeout for heavy 3D portfolios
+            await page.goto(url, wait_until="networkidle", timeout=30000) 
+            
+            # UPGRADE 2: Force-hide common loading screen overlays using JavaScript
+            # This looks for elements with 'loader', 'loading', or 'preloader' in their class/id and removes them.
+            await page.evaluate("""
+                const loaders = document.querySelectorAll('[class*="load"], [id*="load"], [class*="preloader"]');
+                loaders.forEach(loader => loader.style.display = 'none');
+            """)
+
+            # Wait an additional 2 seconds just in case the removal triggered a fade-in animation
+            await page.wait_for_timeout(2000) 
             
             for i in range(1, num_shots + 1):
                 filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
                 
-                # 1. WAIT: Pause for 2.5 seconds to let CSS/JS animations finish loading
-                await page.wait_for_timeout(2500) 
-                
-                # 2. CAPTURE: Take a screenshot of just the current visible window (not full page)
+                # CAPTURE: Take a screenshot of just the current visible window (not full page)
                 await page.screenshot(path=filepath, full_page=False)
                 print(f"  -> Saved: {filepath}")
                 saved_paths.append(filepath)
                 
-                # 3. SCROLL: Scroll down by exactly one viewport height
+                # SCROLL: Scroll down by exactly one viewport height
                 await page.evaluate("window.scrollBy(0, window.innerHeight)")
+                # A smaller wait between scroll shots for standard scroll animations
+                await page.wait_for_timeout(1500) 
                 
             return saved_paths
         except Exception as e:
-            print(f"  -> Failed ({developer_name}): {e}")
+            print(f"  -> Failed ({developer_name}). Timeout or bot block: {e}")
             return saved_paths
         finally:
             await browser.close()
@@ -109,8 +120,6 @@ async def run_batch_job(limit: int = 3):
         filepaths = await capture_incremental_screenshots(item["url"], item["name"], num_shots=5)
 
         if len(filepaths) == 5:
-            # Simple check if all were cached paths based on file string format,
-            # though here we'll just consider any non-zero count as a success for brevity.
             results["success"] += 1
         elif len(filepaths) > 0:
             results["success"] += 1 # partial success
