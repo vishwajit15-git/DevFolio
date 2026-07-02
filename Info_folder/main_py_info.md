@@ -24,7 +24,7 @@ The main FastAPI application server. Creates a REST API with a single endpoint (
 
 ## Line-by-Line Explanation
 
-```python
+```text
 # Lines 1-4: Module docstring
 """
 DevFolio Backend - Main Server
@@ -33,7 +33,7 @@ FastAPI application serving portfolio data and cached screenshots to the fronten
 ```
 - **Lines 1–4:** Module-level docstring describing the server's role.
 
-```python
+```text
 # Lines 6-8: Imports
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,13 +43,13 @@ from backend.fetch_data import get_portfolio_data
 - **Line 7:** Imports `CORSMiddleware` to allow cross-origin requests from the frontend.
 - **Line 8:** Imports `get_portfolio_data` using the `backend.` package prefix. This is required because `uvicorn backend.main:app` runs from the project root, so Python resolves imports relative to the root — not relative to `backend/`.
 
-```python
+```text
 # Line 10: App initialization
 app = FastAPI(title="DevFolio API", description="Serves developer portfolio data for the DevFolio gallery.")
 ```
 - **Line 10:** Creates the FastAPI app instance. The `title` and `description` appear in the auto-generated Swagger docs at `/docs`.
 
-```python
+```text
 # Lines 12-17: CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -63,7 +63,7 @@ app.add_middleware(
 - **Line 15:** `allow_methods=["*"]` — allows all HTTP methods.
 - **Line 16:** `allow_headers=["*"]` — allows all request headers.
 
-```python
+```text
 # Lines 20-28: Portfolio endpoint
 @app.get("/api/portfolios")
 def read_portfolios():

@@ -33,7 +33,7 @@ Fetches `feed.json`, parses each entry, and returns a list of cleaned portfolio 
 
 ## Line-by-Line Explanation
 
-```python
+```text
 # Lines 1-5: Module docstring
 """
 DevFolio Backend - Data Fetcher
@@ -43,19 +43,19 @@ Extracts developer names, portfolio URLs, and tagline-based job roles.
 ```
 - **Lines 1–5:** Module-level docstring. Updated to reflect that roles come from the `tagline` field, not bracketed text.
 
-```python
+```text
 # Line 7: Import
 import requests
 ```
 - **Line 7:** Imports `requests` for HTTP calls. Note: `re` (regex) was removed — the actual `feed.json` stores roles in a dedicated `tagline` field, so regex parsing is unnecessary.
 
-```python
+```text
 # Lines 9-10: Constant
 FEED_URL = "https://raw.githubusercontent.com/emmabostian/developer-portfolios/master/feed.json"
 ```
 - **Lines 9–10:** Module-level constant for the raw GitHub URL. Points to the `master` branch of the source repository.
 
-```python
+```text
 # Lines 13-23: Function definition & docstring
 def get_portfolio_data():
     """..."""
@@ -63,7 +63,7 @@ def get_portfolio_data():
 - **Line 13:** Main function — no parameters needed since the URL is a constant.
 - **Lines 14–22:** Docstring explaining return format and defaults.
 
-```python
+```text
 # Lines 24-26: HTTP request
     try:
         response = requests.get(FEED_URL, timeout=15)
@@ -73,19 +73,19 @@ def get_portfolio_data():
 - **Line 25:** GET request with 15-second timeout to prevent indefinite hanging.
 - **Line 26:** `raise_for_status()` throws `HTTPError` for 4xx/5xx responses.
 
-```python
+```text
 # Line 27: Parse JSON
         raw_data = response.json()
 ```
 - **Line 27:** Parses the response body into a Python list of dictionaries.
 
-```python
+```text
 # Line 29: Initialize output
         cleaned_portfolios = []
 ```
 - **Line 29:** Empty accumulator list for processed entries.
 
-```python
+```text
 # Lines 31-34: Extract fields from each entry
         for item in raw_data:
             name = item.get("name", "Unknown")
@@ -97,7 +97,7 @@ def get_portfolio_data():
 - **Line 33:** Extracts `url`, named `portfolio_url` to avoid variable shadowing.
 - **Line 34:** Extracts `tagline` as the role — this is the actual field the repo uses for job titles. Defaults to `"Developer"` if absent.
 
-```python
+```text
 # Lines 36-40: Build output entry
             cleaned_portfolios.append({
                 "name": name,
@@ -107,13 +107,13 @@ def get_portfolio_data():
 ```
 - **Lines 36–40:** Creates a structured dictionary and appends to the output list.
 
-```python
+```text
 # Line 42: Return
         return cleaned_portfolios
 ```
 - **Line 42:** Returns the full list of 1,806 parsed portfolios.
 
-```python
+```text
 # Lines 44-46: Error handling
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data: {e}")
