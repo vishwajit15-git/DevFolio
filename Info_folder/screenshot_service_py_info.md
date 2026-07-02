@@ -143,11 +143,13 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
 - Robust error handling. If a site completely blocks the bot, we return what we have (or an empty list). The frontend will be instructed to show a fallback UI instead of crashing.
 
 ```python
-# Lines 154-182: Batch Job Runner
+# Lines 153-176: Batch Job Runner
 async def run_batch_job(limit: int = 5):
     ...
 ```
-- Test runner logic for processing random portfolios.
+- Fetches the full list of 1,806 portfolios using `get_portfolio_data()`.
+- **Randomization:** Uses `random.sample(portfolios, min(limit, len(portfolios)))` to pick 5 random developers instead of always starting at the top of the list. This provides a broader test of the scraper's universal capabilities across diverse web architectures.
+- Tracks `success`, `failed`, and `cached` counts and outputs a final batch summary.
 
 ---
 *Last Updated: 2026-07-02 (Day 3 — Implemented Global CSS Injection)*
