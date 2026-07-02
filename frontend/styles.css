@@ -315,7 +315,7 @@ body {
    =========================== */
 .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 32px;
     padding: 0 0 64px;
     width: 100%;
@@ -327,6 +327,7 @@ body {
 .portfolio-card {
     position: relative;
     width: 100%;
+    min-width: 0;
     height: var(--card-height);
     background: var(--bg-card);
     border: var(--border-thick);
