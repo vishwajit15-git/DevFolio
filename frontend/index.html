@@ -3,13 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="DevFolio - A visual gallery of 1,800+ developer portfolios for design and coding inspiration.">
+    <meta name="description" content="DevFolio — A visual gallery of 1,800+ developer portfolios for design and coding inspiration. Hover to scroll, filter by role.">
     <title>DevFolio | Developer Portfolio Gallery</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <!-- Grid container will be populated by app.js -->
-    <div id="app"></div>
-    <script src="app.js"></script>
+
+    <!-- Hero Header -->
+    <header id="hero-header">
+        <div class="header-window">
+            <div class="window-title-bar">
+                <div class="window-controls">
+                    <div class="control-dot"></div>
+                    <div class="control-dot"></div>
+                    <div class="control-dot"></div>
+                </div>
+                <div class="window-title">DevFolio.exe</div>
+            </div>
+            <div class="header-content">
+                <div class="logo-group">
+                    <span class="logo-icon">&lt;/&gt;</span>
+                    <h1 class="logo-text">DevFolio</h1>
+                </div>
+                <p class="tagline">Explore <span id="portfolio-count" class="count-highlight">1,800+</span> developer portfolios. Hover to scroll. Click to visit.</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Filter Bar -->
+    <section id="filter-bar">
+        <div class="filter-content filter-window">
+            <div class="search-wrapper" id="search-wrapper">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="M21 21l-4.35-4.35"></path>
+                </svg>
+                <input type="text" id="search-input" placeholder="Search by name..." autocomplete="off">
+            </div>
+            <div class="role-filter-wrapper">
+                <select id="role-filter">
+                    <option value="all">All Roles</option>
+                </select>
+            </div>
+            <div class="stats-badge" id="stats-badge">
+                <span id="visible-count">0</span> shown
+            </div>
+        </div>
+    </section>
+
+    <!-- Gallery Grid -->
+    <main id="gallery-grid" class="gallery-grid">
+        <!-- Cards injected by app.js -->
+    </main>
+
+    <!-- Loading Spinner -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p class="loading-text">Loading portfolios...</p>
+    </div>
+
+    <script src="/static/app.js"></script>
 </body>
 </html>
