@@ -41,7 +41,7 @@ Fetches portfolio data and captures universal screenshots in batch for testing. 
 
 ## Line-by-Line Explanation
 
-```python
+```text
 # Lines 1-8: Module docstring
 """
 DevFolio Backend - Screenshot Service
@@ -50,7 +50,7 @@ DevFolio Backend - Screenshot Service
 ```
 - Module-level docstring reflecting the new 4-layer strategy.
 
-```python
+```text
 # Lines 10-21: Imports and Directory Setup
 import asyncio
 ...
@@ -59,21 +59,21 @@ SCREENSHOTS_DIR = os.path.join(SCRIPT_DIR, "screenshots")
 ```
 - Standard imports and absolute path setup.
 
-```python
+```text
 # Lines 27-60: DOM Stability Injector
 async def wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500):
     ...
 ```
 - Implements the `MutationObserver` with the hard 30-second timeout fallback.
 
-```python
+```text
 # Lines 63-82: Main Capture Function Setup & Caching
 async def capture_universal_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]:
     ...
 ```
 - Skips capturing if all 5 parts are already present on disk.
 
-```python
+```text
 # Lines 84-88: Playwright Initialization
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -81,7 +81,7 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
 ```
 - Initializes the headless browser.
 
-```python
+```text
 # Lines 93-97: Strategy 1 - Media Routing
             await page.route("**/*", lambda route: route.abort() 
                 if route.request.resource_type in ["media", "websocket"] 
@@ -89,7 +89,7 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
 ```
 - Kills heavy infinite background media and websocket data streams.
 
-```python
+```text
 # Lines 99-119: Strategy 2 - Global CSS Injection
             await page.add_init_script("""
                 const style = document.createElement('style');
@@ -109,7 +109,7 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
 ```
 - **The Silver Bullet.** This script executes before the page renders. It overrides all CSS animation timers to 0, forcing progress bars to instantly skip to 100%. It also targets common classes used by scroll-reveal libraries (like AOS) and forces them to have `opacity: 1`. This stops the scraper from capturing empty white pages.
 
-```python
+```text
 # Lines 121-127: Navigation & Strategy 3 - JS Loader Bypass
             await page.goto(url, wait_until="domcontentloaded", timeout=20000)
             
@@ -120,7 +120,7 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
 ```
 - Navigates and forcefully hides any remaining sticky loader overlays.
 
-```python
+```text
 # Lines 129-142: Strategy 4 - DOM Stability & Incremental Capture Loop
             print("  -> Waiting for animations and loading screens to settle (DOM Stability)...")
             await wait_for_dom_stability(page)
@@ -132,7 +132,7 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
 ```
 - Waits for the physical DOM structure to stop changing, then captures the 5 scrolling sections.
 
-```python
+```text
 # Lines 144-151: Error Handling & Cleanup
         except Exception as e:
             print(f"  -> Failed ({developer_name}) - Will use Fallback UI. Error: {e}")
@@ -142,7 +142,7 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
 ```
 - Robust error handling. If a site completely blocks the bot, we return what we have (or an empty list). The frontend will be instructed to show a fallback UI instead of crashing.
 
-```python
+```text
 # Lines 153-176: Batch Job Runner
 async def run_batch_job(limit: int = 5):
     ...
