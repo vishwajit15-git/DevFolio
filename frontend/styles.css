@@ -302,69 +302,17 @@ body {
 
 
 /* ===========================
-   Main Layout & Alphabet Slider
+   Gallery Grid (Strictly 2 Columns)
    =========================== */
-.main-layout {
-    display: flex;
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 32px 64px;
-    gap: 32px;
-}
-
-/* Gallery Grid (Strictly 2 Columns) */
 .gallery-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 32px;
-    flex: 1;
-    min-width: 0; /* Prevents flex blowout */
+    padding: 0 32px 64px;
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
 }
-
-/* Alphabet Slider */
-.alphabet-slider {
-    position: sticky;
-    top: 100px; /* Below the filter bar */
-    height: calc(100vh - 120px);
-    width: 32px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 0;
-    background: var(--bg-card);
-    border: var(--border-thick);
-    box-shadow: var(--shadow-flat-sm);
-    z-index: 10;
-    overflow-y: auto;
-}
-
-/* Hide scrollbar for slider */
-.alphabet-slider::-webkit-scrollbar {
-    display: none;
-}
-.alphabet-slider {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-}
-
-.alphabet-letter {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-muted);
-    cursor: pointer;
-    text-transform: uppercase;
-    padding: 4px;
-    transition: color var(--transition-fast), transform var(--transition-fast);
-}
-
-.alphabet-letter:hover,
-.alphabet-letter.active {
-    color: var(--fg-main);
-    transform: scale(1.4);
-}
-
 
 /* ===========================
    Portfolio Card (Neo-Brutalist)
@@ -547,17 +495,9 @@ body {
    Responsive Design
    =========================== */
 @media (max-width: 900px) {
-    .main-layout {
-        flex-direction: column;
-        padding: 0 16px 48px;
-    }
-
     .gallery-grid {
         grid-template-columns: 1fr;
-    }
-
-    .alphabet-slider {
-        display: none; /* Hide on mobile */
+        padding: 0 16px 48px;
     }
 
     .filter-window {
