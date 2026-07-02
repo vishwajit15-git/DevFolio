@@ -32,7 +32,7 @@ The main JavaScript file that powers the DevFolio frontend. Responsible for:
 
 ## Line-by-Line Explanation
 
-```javascript
+```text
 // Lines 1-4: File header comment
 /**
  * DevFolio - Frontend Application
