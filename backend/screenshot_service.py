@@ -28,17 +28,21 @@ def _safe_filename(name: str) -> str:
 
 async def wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500):
     """
-    Injects a script to wait until the DOM stops mutating for `idle_time_ms`.
+    Injects a script to wait until the DOM stops mutating for `idle_time_ms`,
+    or forces a resolution after `timeout_ms` to prevent infinite hangs on continuously animating sites.
     """
     await page.evaluate("""
-        (idle_time_ms) => {
+        ({idle_time_ms, timeout_ms}) => {
             return new Promise((resolve) => {
-                let timeout;
+                let idleTimeout;
+                let forceTimeout;
+                
                 const observer = new MutationObserver(() => {
-                    clearTimeout(timeout);
+                    clearTimeout(idleTimeout);
                     // Reset the timer every time the screen changes
-                    timeout = setTimeout(() => {
+                    idleTimeout = setTimeout(() => {
                         observer.disconnect();
+                        clearTimeout(forceTimeout);
                         resolve();
                     }, idle_time_ms);
                 });
@@ -46,13 +50,21 @@ async def wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500):
                 observer.observe(document.body, { childList: true, subtree: true, attributes: true });
                 
                 // Initial timer in case the page is already static
-                timeout = setTimeout(() => {
+                idleTimeout = setTimeout(() => {
                     observer.disconnect();
+                    clearTimeout(forceTimeout);
                     resolve();
                 }, idle_time_ms);
+                
+                // Hard timeout in case of infinitely mutating DOMs (e.g. blinking cursors, ticking clocks)
+                forceTimeout = setTimeout(() => {
+                    observer.disconnect();
+                    clearTimeout(idleTimeout);
+                    resolve();
+                }, timeout_ms);
             });
         }
-    """, idle_time_ms)
+    """, {"idle_time_ms": idle_time_ms, "timeout_ms": timeout_ms})
 
 
 async def capture_universal_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]:
