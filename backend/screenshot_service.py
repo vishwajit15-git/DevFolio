@@ -150,9 +150,11 @@ async def run_batch_job(limit: int = 3):
 
     print("Fetching portfolio data from GitHub...")
     portfolios = get_portfolio_data()
-    print(f"Found {len(portfolios)} portfolios. Processing first {limit}...\n")
+    
+    import random
+    batch = random.sample(portfolios, min(limit, len(portfolios)))
+    print(f"Found {len(portfolios)} portfolios. Processing {limit} random ones...\n")
 
-    batch = portfolios[:limit]
     results = {"success": 0, "failed": 0, "cached": 0}
 
     for i, item in enumerate(batch, 1):
@@ -171,4 +173,4 @@ async def run_batch_job(limit: int = 3):
 
 
 if __name__ == "__main__":
-    asyncio.run(run_batch_job(limit=3))
+    asyncio.run(run_batch_job(limit=5))
