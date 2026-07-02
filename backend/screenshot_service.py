@@ -1,7 +1,7 @@
 """
 DevFolio Backend - Screenshot Service
 Uses Playwright to generate and cache incremental screenshots of developer portfolios.
-Includes network monitoring and JS injection to bypass loading screens.
+Implements Universal Capture strategies (DOM Stability, Request Blocking) for maximum reliability.
 Runs as a standalone batch job or can be imported by the FastAPI server.
 """
 
@@ -26,10 +26,39 @@ def _safe_filename(name: str) -> str:
     return re.sub(r'[^a-zA-Z0-9]', '_', name).lower()
 
 
-async def capture_incremental_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]:
+async def wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500):
+    """
+    Injects a script to wait until the DOM stops mutating for `idle_time_ms`.
+    """
+    await page.evaluate("""
+        (idle_time_ms) => {
+            return new Promise((resolve) => {
+                let timeout;
+                const observer = new MutationObserver(() => {
+                    clearTimeout(timeout);
+                    // Reset the timer every time the screen changes
+                    timeout = setTimeout(() => {
+                        observer.disconnect();
+                        resolve();
+                    }, idle_time_ms);
+                });
+                
+                observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+                
+                // Initial timer in case the page is already static
+                timeout = setTimeout(() => {
+                    observer.disconnect();
+                    resolve();
+                }, idle_time_ms);
+            });
+        }
+    """, idle_time_ms)
+
+
+async def capture_universal_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]:
     """
     Launches a headless Chromium browser, navigates to the portfolio URL,
-    bypasses loaders, and takes incremental screenshots by scrolling down.
+    waits for DOM stability, and takes incremental screenshots by scrolling down.
 
     Args:
         url: The portfolio URL to capture.
@@ -60,19 +89,18 @@ async def capture_incremental_screenshots(url: str, developer_name: str, num_sho
 
         try:
             print(f"Visiting {developer_name}'s portfolio...")
-            # UPGRADE 1: Wait for 'networkidle' instead of just 'load'
-            # We give it a generous 30-second timeout for heavy 3D portfolios
-            await page.goto(url, wait_until="networkidle", timeout=30000) 
             
-            # UPGRADE 2: Force-hide common loading screen overlays using JavaScript
-            # This looks for elements with 'loader', 'loading', or 'preloader' in their class/id and removes them.
-            await page.evaluate("""
-                const loaders = document.querySelectorAll('[class*="load"], [id*="load"], [class*="preloader"]');
-                loaders.forEach(loader => loader.style.display = 'none');
-            """)
+            # 1. Block heavy media that causes infinite loading loops
+            await page.route("**/*", lambda route: route.abort() 
+                if route.request.resource_type in ["media", "websocket"] 
+                else route.continue_())
 
-            # Wait an additional 2 seconds just in case the removal triggered a fade-in animation
-            await page.wait_for_timeout(2000) 
+            # 2. Standard load (don't wait for network idle)
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            
+            # 3. Wait for the page's HTML to physically stop changing
+            print("  -> Waiting for animations and loading screens to settle (DOM Stability)...")
+            await wait_for_dom_stability(page)
             
             for i in range(1, num_shots + 1):
                 filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
@@ -85,11 +113,11 @@ async def capture_incremental_screenshots(url: str, developer_name: str, num_sho
                 # SCROLL: Scroll down by exactly one viewport height
                 await page.evaluate("window.scrollBy(0, window.innerHeight)")
                 # A smaller wait between scroll shots for standard scroll animations
-                await page.wait_for_timeout(1500) 
+                await page.wait_for_timeout(1000) 
                 
             return saved_paths
         except Exception as e:
-            print(f"  -> Failed ({developer_name}). Timeout or bot block: {e}")
+            print(f"  -> Failed ({developer_name}): {e}")
             return saved_paths
         finally:
             await browser.close()
@@ -97,7 +125,7 @@ async def capture_incremental_screenshots(url: str, developer_name: str, num_sho
 
 async def run_batch_job(limit: int = 3):
     """
-    Fetches portfolio data and captures incremental screenshots in batch.
+    Fetches portfolio data and captures universal screenshots in batch.
 
     Args:
         limit: Number of portfolios to process (default 3 for testing).
@@ -117,7 +145,7 @@ async def run_batch_job(limit: int = 3):
 
     for i, item in enumerate(batch, 1):
         print(f"[{i}/{len(batch)}] {item['name']}")
-        filepaths = await capture_incremental_screenshots(item["url"], item["name"], num_shots=5)
+        filepaths = await capture_universal_screenshots(item["url"], item["name"], num_shots=5)
 
         if len(filepaths) == 5:
             results["success"] += 1
