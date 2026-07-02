@@ -80,13 +80,23 @@ body {
 
 
 /* ===========================
+   Global Container
+   =========================== */
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 32px;
+    width: 100%;
+}
+
+
+/* ===========================
    Hero Header (Retro Window Style)
    =========================== */
 #hero-header {
     position: relative;
-    max-width: 1400px;
-    margin: 40px auto 32px;
-    padding: 0 32px;
+    width: 100%;
+    margin: 40px 0 32px;
 }
 
 .header-window {
@@ -207,9 +217,8 @@ body {
     position: sticky;
     top: 20px;
     z-index: 100;
-    padding: 0 32px;
-    max-width: 1400px;
-    margin: 0 auto 32px;
+    width: 100%;
+    margin: 0 0 32px;
 }
 
 .filter-window {
@@ -308,10 +317,8 @@ body {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 32px;
-    padding: 0 32px 64px;
+    padding: 0 0 64px;
     width: 100%;
-    max-width: 1400px;
-    margin: 0 auto;
 }
 
 /* ===========================
@@ -495,9 +502,12 @@ body {
    Responsive Design
    =========================== */
 @media (max-width: 900px) {
+    .container {
+        padding: 0 16px;
+    }
+
     .gallery-grid {
         grid-template-columns: 1fr;
-        padding: 0 16px 48px;
     }
 
     .filter-window {
@@ -509,12 +519,7 @@ body {
     }
 
     #hero-header {
-        padding: 0 16px;
         margin-top: 24px;
-    }
-    
-    #filter-bar {
-        padding: 0 16px;
     }
 
     .logo-text {
