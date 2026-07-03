@@ -127,12 +127,31 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
             print("  -> Waiting for animations and loading screens to settle (DOM Stability)...")
             await wait_for_dom_stability(page)
             
+            # Try to load R2 client
+            r2_upload_enabled = bool(os.getenv("R2_ACCOUNT_ID"))
+            if r2_upload_enabled:
+                try:
+                    from backend.r2_client import upload_file_to_r2
+                except ImportError:
+                    try:
+                        from r2_client import upload_file_to_r2
+                    except ImportError:
+                        r2_upload_enabled = False
+
             for i in range(1, num_shots + 1):
                 filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
                 
                 await page.screenshot(path=filepath, full_page=False)
                 print(f"  -> Saved: {filepath}")
                 saved_paths.append(filepath)
+                
+                # Upload to Cloudflare R2
+                if r2_upload_enabled:
+                    try:
+                        r2_url = upload_file_to_r2(filepath, f"screenshots/{safe_name}_part{i}.png")
+                        print(f"  -> Uploaded to R2: {r2_url}")
+                    except Exception as e:
+                        print(f"  -> R2 Upload Failed: {e}")
                 
                 await page.evaluate("window.scrollBy(0, window.innerHeight)")
                 await page.wait_for_timeout(1000) 

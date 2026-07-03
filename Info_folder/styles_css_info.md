@@ -1,30 +1,10 @@
-# styles.css — Frontend Stylesheet
-
-## File Path
-`frontend/styles.css`
+# `frontend/styles.css`
 
 ## Purpose
-Contains all CSS styling for the DevFolio frontend — the 2×2 CSS Grid layout for portfolio cards, the hover-to-scroll animation (CSS `transform: translateY` on the screenshot image), lazy-loading visual states, responsive breakpoints, and overall visual theme (colors, typography, spacing).
+The global stylesheet for DevFolio, implementing a highly premium, Zayar Shein-inspired "Neo-Brutalist" design language.
 
-## Dependencies
-- None (pure CSS)
-
-## Connection to Other Files
-- **Linked by** `index.html` → `<link rel="stylesheet" href="styles.css">`
-- **Styles elements created by** `app.js` → the JS dynamically creates card elements that rely on CSS classes defined here
-
-## Classes / Selectors
-*(Currently a placeholder — will be updated as code is written)*
-
-## Line-by-Line Explanation
-
-```css
-/* Lines 1-3: File header comment */
-/* DevFolio - Styles
-   2x2 grid layout, hover-to-scroll animations, and responsive design.
-*/
-```
-- **Lines 1–3:** A CSS comment describing the file's scope — grid layout, animations, and responsiveness.
-
----
-*Last Updated: 2026-07-01 (Day 1 — Initial scaffold)*
+## Recent Updates
+1. **Grid Blowout Fix**: Updated the 2-column layout to use `grid-template-columns: repeat(2, minmax(0, 1fr))` to prevent large screenshot images from blowing out the grid columns.
+2. **Scroll Wrapper**: Added CSS for `.scroll-wrapper` which holds 5 incremental screenshots. The `.portfolio-card:hover .scroll-wrapper` now translates vertically upwards to create an automated scrolling effect on hover.
+3. **Neo-Brutalist Theming**: Fully implemented CSS custom variables for Light and Dark modes. Light uses Manila tones; Dark uses the exact palette (`#1a0f09`, `#efe3cf`) scraped from `zayarshein.com`. Features thick borders, flat hard shadows, and a retro dot-matrix background.
+4. **Placeholder Styling**: Added absolute positioning classes to overlay "Preview Unavailable" text crisply on top of the custom-generated Neo-Brutalist placeholder graphic.
