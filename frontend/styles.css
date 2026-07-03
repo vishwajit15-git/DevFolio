@@ -415,6 +415,44 @@ body {
     object-fit: cover;
 }
 
+.placeholder-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.placeholder-text {
+    position: absolute;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--bg-main);
+    border: var(--border-thick);
+    box-shadow: var(--shadow-flat-sm);
+    padding: 12px 24px;
+    z-index: 5;
+}
+
+.placeholder-title {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--fg-main);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.placeholder-sub {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--fg-main);
+}
+
 /* Visit Link Button */
 .visit-btn-wrapper {
     position: absolute;

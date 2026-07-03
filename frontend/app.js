@@ -79,7 +79,15 @@ function createCard(portfolio) {
     
     let imageContent = '';
     if (isPlaceholder) {
-        imageContent = `<img src="/static/assets/placeholder.png" class="portfolio-image placeholder" alt="${portfolio.name}'s Portfolio" loading="lazy">`;
+        imageContent = `
+            <div class="placeholder-wrapper">
+                <img src="/static/assets/placeholder.png" class="portfolio-image placeholder" alt="${portfolio.name}'s Portfolio" loading="lazy">
+                <div class="placeholder-text">
+                    <span class="placeholder-title">Preview Unavailable</span>
+                    <span class="placeholder-sub">Please click open to view</span>
+                </div>
+            </div>
+        `;
     } else {
         imageContent = `
             <div class="scroll-wrapper">
