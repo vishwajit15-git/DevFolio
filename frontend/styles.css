@@ -388,23 +388,31 @@ body {
     background: var(--bg-main);
 }
 
-.portfolio-image {
+.scroll-wrapper {
+    display: flex;
+    flex-direction: column;
     width: 100%;
-    display: block;
     transition: transform 3.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-.portfolio-card:hover .portfolio-image {
-    /* Assuming header is ~40px, we scroll the image up leaving the header visible */
+.portfolio-image {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.portfolio-card:hover .scroll-wrapper {
+    /* Translate upwards to show all 5 images (assuming they take up 5x the width in height, minus one window height) */
     transform: translateY(calc(-100% + var(--card-height) - 44px));
+}
+
+.portfolio-card:hover .portfolio-image.placeholder {
+    transform: none;
 }
 
 .portfolio-image.placeholder {
     height: 100%;
     object-fit: cover;
-}
-.portfolio-card:hover .portfolio-image.placeholder {
-    transform: none;
 }
 
 /* Visit Link Button */

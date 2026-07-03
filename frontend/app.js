@@ -76,11 +76,21 @@ function createCard(portfolio) {
 
     // Determine image source: real screenshot or fallback placeholder
     const isPlaceholder = !portfolio.has_screenshots;
-    const imageSrc = isPlaceholder
-        ? '/static/assets/placeholder.png'
-        : `${API_BASE}/screenshots/${portfolio.safe_name}_part1.png`;
-
-    const placeholderClass = isPlaceholder ? ' placeholder' : '';
+    
+    let imageContent = '';
+    if (isPlaceholder) {
+        imageContent = `<img src="/static/assets/placeholder.png" class="portfolio-image placeholder" alt="${portfolio.name}'s Portfolio" loading="lazy">`;
+    } else {
+        imageContent = `
+            <div class="scroll-wrapper">
+                <img src="${API_BASE}/screenshots/${portfolio.safe_name}_part1.png" class="portfolio-image" alt="Part 1" loading="lazy">
+                <img src="${API_BASE}/screenshots/${portfolio.safe_name}_part2.png" class="portfolio-image" alt="Part 2" loading="lazy">
+                <img src="${API_BASE}/screenshots/${portfolio.safe_name}_part3.png" class="portfolio-image" alt="Part 3" loading="lazy">
+                <img src="${API_BASE}/screenshots/${portfolio.safe_name}_part4.png" class="portfolio-image" alt="Part 4" loading="lazy">
+                <img src="${API_BASE}/screenshots/${portfolio.safe_name}_part5.png" class="portfolio-image" alt="Part 5" loading="lazy">
+            </div>
+        `;
+    }
 
     card.innerHTML = `
         <div class="card-header">
@@ -93,12 +103,7 @@ function createCard(portfolio) {
             <span class="role-badge">${escapeHtml(portfolio.role || 'Developer')}</span>
         </div>
         <div class="card-image-window">
-            <img
-                src="${imageSrc}"
-                class="portfolio-image${placeholderClass}"
-                alt="${portfolio.name}'s Portfolio"
-                loading="lazy"
-            >
+            ${imageContent}
             <div class="visit-btn-wrapper">
                 <a href="${portfolio.url}" target="_blank" rel="noopener noreferrer" class="visit-link">
                     Open
