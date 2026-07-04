@@ -26,6 +26,42 @@ async function loadPortfolios() {
         allPortfolios = data.portfolios;
         portfolioCountEl.textContent = data.count.toLocaleString();
 
+        // Update Progress Bar
+        updateProgressBar(allPortfolios);
+
+        // Periodically check API to update progress bar if not finished
+        if (allPortfolios.filter(p => p.has_screenshots).length < allPortfolios.length) {
+            const intervalId = setInterval(async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/api/portfolios`);
+                    if (res.ok) {
+                        const newData = await res.json();
+                        updateProgressBar(newData.portfolios);
+                        
+                        // Dynamically update the grid without a full re-render
+                        newData.portfolios.forEach(newP => {
+                            const oldP = allPortfolios.find(p => p.safe_name === newP.safe_name);
+                            if (oldP && !oldP.has_screenshots && newP.has_screenshots) {
+                                oldP.has_screenshots = true;
+                                // Find the card in the DOM and replace it
+                                const cards = document.querySelectorAll('.portfolio-card');
+                                cards.forEach(card => {
+                                    if (card.dataset.name === newP.name.toLowerCase()) {
+                                        const newCard = createCard(newP);
+                                        card.replaceWith(newCard);
+                                    }
+                                });
+                            }
+                        });
+                        
+                        if (newData.portfolios.filter(p => p.has_screenshots).length >= newData.portfolios.length) {
+                            clearInterval(intervalId);
+                        }
+                    }
+                } catch(e) {}
+            }, 10000);
+        }
+
         // Populate the role dropdown with unique roles
         populateRoleFilter(allPortfolios);
 
@@ -91,11 +127,9 @@ function createCard(portfolio) {
     } else {
         imageContent = `
             <div class="scroll-wrapper">
-                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part1.png" class="portfolio-image" alt="Part 1" loading="lazy">
-                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part2.png" class="portfolio-image" alt="Part 2" loading="lazy">
-                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part3.png" class="portfolio-image" alt="Part 3" loading="lazy">
-                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part4.png" class="portfolio-image" alt="Part 4" loading="lazy">
-                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part5.png" class="portfolio-image" alt="Part 5" loading="lazy">
+                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part1.jpg" class="portfolio-image" alt="Part 1" loading="lazy">
+                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part2.jpg" class="portfolio-image" alt="Part 2" loading="lazy">
+                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part3.jpg" class="portfolio-image" alt="Part 3" loading="lazy">
             </div>
         `;
     }
@@ -202,6 +236,45 @@ themeToggle.addEventListener('click', () => {
                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
            </svg>`;
 });
+// ─── Scraper Progress ────────────────────────────
+function updateProgressBar(portfoliosList) {
+    const scrapedCount = portfoliosList.filter(p => p.has_screenshots).length;
+    const totalCount = portfoliosList.length;
+    const percentage = Math.round((scrapedCount / totalCount) * 100) || 0;
+    
+    const progressContainer = document.getElementById('scraper-progress-container');
+    const progressText = document.getElementById('progress-text');
+    const progressBarFill = document.getElementById('progress-bar-fill');
+    
+    if (progressContainer) {
+        if (scrapedCount < totalCount) {
+            progressContainer.style.display = 'block';
+            progressText.innerText = `${scrapedCount} / ${totalCount} (${percentage}%)`;
+            progressBarFill.style.width = `${percentage}%`;
+        } else {
+            progressContainer.style.display = 'none';
+        }
+    }
+}
 
 // ─── Boot ────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', loadPortfolios);
+
+// ─── Scroll to Top Button ──────────────────────────
+const scrollToTopBtn = document.getElementById('scroll-to-top');
+
+window.addEventListener('scroll', () => {
+    // Show button when scrolled down 500px
+    if (window.scrollY > 500) {
+        scrollToTopBtn.classList.remove('hidden');
+    } else {
+        scrollToTopBtn.classList.add('hidden');
+    }
+});
+
+scrollToTopBtn.addEventListener('click', () => {
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+});

@@ -40,7 +40,7 @@ async def upload_file_to_mongo(local_file_path: str, filename: str) -> str:
     await fs.upload_from_stream(
         filename,
         io.BytesIO(file_data),
-        metadata={"contentType": "image/png"}
+        metadata={"contentType": "image/jpeg"}
     )
     
     return f"/api/screenshots/{filename}"

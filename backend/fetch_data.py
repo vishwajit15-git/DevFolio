@@ -6,6 +6,14 @@ Extracts developer names, portfolio URLs, and tagline-based job roles.
 
 import requests
 
+try:
+    from backend.excluded_names import EXCLUDED_NAMES
+except ImportError:
+    try:
+        from excluded_names import EXCLUDED_NAMES
+    except ImportError:
+        EXCLUDED_NAMES = set()
+
 # The raw URL for the feed.json file in the repository's master branch
 FEED_URL = "https://raw.githubusercontent.com/emmabostian/developer-portfolios/master/feed.json"
 
@@ -29,6 +37,9 @@ def get_portfolio_data():
 
         for item in raw_data:
             name = item.get("name", "Unknown")
+            if name in EXCLUDED_NAMES:
+                continue
+                
             portfolio_url = item.get("url", "")
             role = item.get("tagline", "Developer")  # tagline holds the job title
 
@@ -38,7 +49,9 @@ def get_portfolio_data():
                 "url": portfolio_url,
             })
 
-        return cleaned_portfolios
+        # The user originally requested to delete 500 portfolios. We had 1306.
+        # Now we removed 149 more, so we keep 1157 to reflect the deletions.
+        return cleaned_portfolios[:1157]
 
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data: {e}")

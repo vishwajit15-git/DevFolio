@@ -5,10 +5,10 @@ FastAPI application serving portfolio data, cached screenshots, and the frontend
 
 import os
 import re
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse
 from backend.fetch_data import get_portfolio_data
 import io
 import os
@@ -57,7 +57,7 @@ async def read_portfolios():
     enriched = []
     for item in data:
         safe_name = _safe_filename(item["name"])
-        target_filename = f"{safe_name}_part1.png"
+        target_filename = f"{safe_name}_part1.jpg"
         
         if USE_MONGO:
             has_screenshots = target_filename in mongo_files

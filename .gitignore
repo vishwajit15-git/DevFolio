@@ -19,3 +19,8 @@ backend/screenshots/
 # OS
 .DS_Store
 Thumbs.db
+
+# Environments
+.env
+.env.*
+!.env.example

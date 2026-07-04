@@ -13,6 +13,9 @@ import asyncio
 import os
 import re
 from playwright.async_api import async_playwright
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Resolve the screenshots directory relative to this script's location
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -65,15 +68,16 @@ async def wait_for_dom_stability(page, timeout_ms=30000, idle_time_ms=2500):
 
 async def capture_universal_screenshots(url: str, developer_name: str, num_shots: int = 5) -> list[str]:
     safe_name = _safe_filename(developer_name)
+    safe_print_name = developer_name.encode('ascii', 'replace').decode('ascii')
     
     cached_paths = []
     for i in range(1, num_shots + 1):
-        filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
+        filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.jpg")
         if os.path.exists(filepath):
             cached_paths.append(filepath)
             
     if len(cached_paths) == num_shots:
-        print(f"Cache hit for {developer_name}: {num_shots} parts.")
+        print(f"Cache hit for {safe_print_name}: {num_shots} parts.")
         return cached_paths
         
     saved_paths = []
@@ -83,7 +87,7 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
         page = await browser.new_page(viewport={"width": 1920, "height": 1080})
 
         try:
-            print(f"Visiting {developer_name}'s portfolio...")
+            print(f"Visiting {safe_print_name}'s portfolio...")
             
             # STRATEGY 1: Media/WebSocket Routing
             # Aborts heavy media that blocks the page load event or causes infinite polling
@@ -114,7 +118,7 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
                 document.addEventListener('DOMContentLoaded', () => document.head.appendChild(style));
             """)
 
-            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            await page.goto(url, wait_until="domcontentloaded", timeout=12000)
             
             # STRATEGY 3: JS Loader Bypass
             # Force-hide persistent loader overlays
@@ -139,16 +143,16 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
                         mongo_upload_enabled = False
 
             for i in range(1, num_shots + 1):
-                filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
+                filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.jpg")
                 
-                await page.screenshot(path=filepath, full_page=False)
+                await page.screenshot(path=filepath, full_page=False, type="jpeg", quality=40)
                 print(f"  -> Saved: {filepath}")
                 saved_paths.append(filepath)
                 
                 # Upload to MongoDB GridFS
                 if mongo_upload_enabled:
                     try:
-                        mongo_url = await upload_file_to_mongo(filepath, f"{safe_name}_part{i}.png")
+                        mongo_url = await upload_file_to_mongo(filepath, f"{safe_name}_part{i}.jpg")
                         print(f"  -> Uploaded to MongoDB GridFS: {mongo_url}")
                     except Exception as e:
                         print(f"  -> MongoDB Upload Failed: {e}")
@@ -159,7 +163,8 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
             return saved_paths
             
         except Exception as e:
-            print(f"  -> Failed ({developer_name}) - Will use Fallback UI. Error: {e}")
+            safe_error = str(e).encode('ascii', 'replace').decode('ascii')
+            print(f"  -> Failed ({safe_name}) - Will use Fallback UI. Error: {safe_error}")
             # If all strategies fail (e.g. strict bot blockers), we return whatever we captured (if any)
             # The frontend will be designed to handle < 5 images by showing a fallback gradient UI.
             return saved_paths
@@ -167,26 +172,31 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
             await browser.close()
 
 
-async def run_batch_job(limit: int = 5):
+async def run_batch_job(limit: int = None):
     try:
         from backend.fetch_data import get_portfolio_data
     except ImportError:
         from fetch_data import get_portfolio_data
 
-    import random
     print("Fetching portfolio data from GitHub...")
     portfolios = get_portfolio_data()
     
-    batch = random.sample(portfolios, min(limit, len(portfolios)))
-    print(f"Found {len(portfolios)} portfolios. Processing {limit} random ones...\n")
+    if limit is not None:
+        import random
+        batch = random.sample(portfolios, min(limit, len(portfolios)))
+        print(f"Found {len(portfolios)} portfolios. Processing {limit} random ones...\n")
+    else:
+        batch = portfolios
+        print(f"Found {len(portfolios)} portfolios. Processing ALL of them...\n")
 
     results = {"success": 0, "failed": 0, "cached": 0}
 
     for i, item in enumerate(batch, 1):
-        print(f"[{i}/{len(batch)}] {item['name']}")
-        filepaths = await capture_universal_screenshots(item["url"], item["name"], num_shots=5)
+        safe_print_name = item['name'].encode('ascii', 'replace').decode('ascii')
+        print(f"[{i}/{len(batch)}] {safe_print_name}")
+        filepaths = await capture_universal_screenshots(item["url"], item["name"], num_shots=3)
 
-        if len(filepaths) == 5:
+        if len(filepaths) == 3:
             results["success"] += 1
         elif len(filepaths) > 0:
             results["success"] += 1 # partial success
@@ -198,4 +208,4 @@ async def run_batch_job(limit: int = 5):
 
 
 if __name__ == "__main__":
-    asyncio.run(run_batch_job(limit=5))
+    asyncio.run(run_batch_job(limit=None))
