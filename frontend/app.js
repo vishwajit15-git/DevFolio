@@ -91,11 +91,11 @@ function createCard(portfolio) {
     } else {
         imageContent = `
             <div class="scroll-wrapper">
-                <img src="${API_BASE}/screenshots/${portfolio.safe_name}_part1.png" class="portfolio-image" alt="Part 1" loading="lazy">
-                <img src="${API_BASE}/screenshots/${portfolio.safe_name}_part2.png" class="portfolio-image" alt="Part 2" loading="lazy">
-                <img src="${API_BASE}/screenshots/${portfolio.safe_name}_part3.png" class="portfolio-image" alt="Part 3" loading="lazy">
-                <img src="${API_BASE}/screenshots/${portfolio.safe_name}_part4.png" class="portfolio-image" alt="Part 4" loading="lazy">
-                <img src="${API_BASE}/screenshots/${portfolio.safe_name}_part5.png" class="portfolio-image" alt="Part 5" loading="lazy">
+                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part1.png" class="portfolio-image" alt="Part 1" loading="lazy">
+                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part2.png" class="portfolio-image" alt="Part 2" loading="lazy">
+                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part3.png" class="portfolio-image" alt="Part 3" loading="lazy">
+                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part4.png" class="portfolio-image" alt="Part 4" loading="lazy">
+                <img src="${API_BASE}/api/screenshots/${portfolio.safe_name}_part5.png" class="portfolio-image" alt="Part 5" loading="lazy">
             </div>
         `;
     }

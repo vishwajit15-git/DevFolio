@@ -127,16 +127,16 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
             print("  -> Waiting for animations and loading screens to settle (DOM Stability)...")
             await wait_for_dom_stability(page)
             
-            # Try to load GCS client
-            gcs_upload_enabled = bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
-            if gcs_upload_enabled:
+            # Try to load MongoDB client
+            mongo_upload_enabled = bool(os.getenv("MONGO_URI"))
+            if mongo_upload_enabled:
                 try:
-                    from backend.gcs_client import upload_file_to_gcs
+                    from backend.mongo_client import upload_file_to_mongo
                 except ImportError:
                     try:
-                        from gcs_client import upload_file_to_gcs
+                        from mongo_client import upload_file_to_mongo
                     except ImportError:
-                        gcs_upload_enabled = False
+                        mongo_upload_enabled = False
 
             for i in range(1, num_shots + 1):
                 filepath = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part{i}.png")
@@ -145,13 +145,13 @@ async def capture_universal_screenshots(url: str, developer_name: str, num_shots
                 print(f"  -> Saved: {filepath}")
                 saved_paths.append(filepath)
                 
-                # Upload to Google Cloud Storage
-                if gcs_upload_enabled:
+                # Upload to MongoDB GridFS
+                if mongo_upload_enabled:
                     try:
-                        gcs_url = upload_file_to_gcs(filepath, f"screenshots/{safe_name}_part{i}.png")
-                        print(f"  -> Uploaded to GCS: {gcs_url}")
+                        mongo_url = await upload_file_to_mongo(filepath, f"{safe_name}_part{i}.png")
+                        print(f"  -> Uploaded to MongoDB GridFS: {mongo_url}")
                     except Exception as e:
-                        print(f"  -> GCS Upload Failed: {e}")
+                        print(f"  -> MongoDB Upload Failed: {e}")
                 
                 await page.evaluate("window.scrollBy(0, window.innerHeight)")
                 await page.wait_for_timeout(1000) 

@@ -8,8 +8,17 @@ import re
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse, HTTPException
 from backend.fetch_data import get_portfolio_data
+import io
+import os
+
+try:
+    from backend.mongo_client import get_db
+    from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+    USE_MONGO = bool(os.getenv("MONGO_URI"))
+except ImportError:
+    USE_MONGO = False
 
 # Resolve paths relative to this file
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,33 +35,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount the screenshots directory so images are accessible at /screenshots/<filename>
+# Keep the static mount as a fallback if Mongo isn't used
 app.mount("/screenshots", StaticFiles(directory=SCREENSHOTS_DIR), name="screenshots")
-
-# Mount frontend static assets (CSS, JS, images) at /static
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="frontend_static")
 
-
 def _safe_filename(name: str) -> str:
-    """Mirrors the screenshot_service filename logic."""
     return re.sub(r'[^a-zA-Z0-9]', '_', name).lower()
 
-
 @app.get("/api/portfolios")
-def read_portfolios():
-    """
-    Returns all developer portfolios with cleaned names, parsed roles,
-    safe filenames for screenshot lookup, and a capture status flag.
-    Response format: { count: int, portfolios: list[dict] }
-    """
+async def read_portfolios():
     data = get_portfolio_data()
+    
+    mongo_files = set()
+    if USE_MONGO:
+        db = get_db()
+        fs = AsyncIOMotorGridFSBucket(db)
+        cursor = fs.find({})
+        async for grid_out in cursor:
+            mongo_files.add(grid_out.filename)
 
-    # Enrich each portfolio entry with screenshot availability info
     enriched = []
     for item in data:
         safe_name = _safe_filename(item["name"])
-        part1_path = os.path.join(SCREENSHOTS_DIR, f"{safe_name}_part1.png")
-        has_screenshots = os.path.exists(part1_path)
+        target_filename = f"{safe_name}_part1.png"
+        
+        if USE_MONGO:
+            has_screenshots = target_filename in mongo_files
+        else:
+            has_screenshots = os.path.exists(os.path.join(SCREENSHOTS_DIR, target_filename))
 
         enriched.append({
             **item,
@@ -61,6 +71,21 @@ def read_portfolios():
         })
 
     return {"count": len(enriched), "portfolios": enriched}
+
+@app.get("/api/screenshots/{filename}")
+async def get_screenshot(filename: str):
+    if not USE_MONGO:
+        raise HTTPException(status_code=404, detail="MongoDB not configured")
+        
+    db = get_db()
+    fs = AsyncIOMotorGridFSBucket(db)
+    
+    try:
+        grid_out = await fs.open_download_stream_by_name(filename)
+        data = await grid_out.read()
+        return StreamingResponse(io.BytesIO(data), media_type="image/png")
+    except Exception:
+        raise HTTPException(status_code=404, detail="Screenshot not found in MongoDB")
 
 
 @app.get("/")
