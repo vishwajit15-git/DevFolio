@@ -36,6 +36,7 @@ app.add_middleware(
 )
 
 # Keep the static mount as a fallback if Mongo isn't used
+os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 app.mount("/screenshots", StaticFiles(directory=SCREENSHOTS_DIR), name="screenshots")
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="frontend_static")
 
