@@ -26,42 +26,6 @@ async function loadPortfolios() {
         allPortfolios = data.portfolios;
         portfolioCountEl.textContent = data.count.toLocaleString();
 
-        // Update Progress Bar
-        updateProgressBar(allPortfolios);
-
-        // Periodically check API to update progress bar if not finished
-        if (allPortfolios.filter(p => p.has_screenshots).length < allPortfolios.length) {
-            const intervalId = setInterval(async () => {
-                try {
-                    const res = await fetch(`${API_BASE}/api/portfolios`);
-                    if (res.ok) {
-                        const newData = await res.json();
-                        updateProgressBar(newData.portfolios);
-                        
-                        // Dynamically update the grid without a full re-render
-                        newData.portfolios.forEach(newP => {
-                            const oldP = allPortfolios.find(p => p.safe_name === newP.safe_name);
-                            if (oldP && !oldP.has_screenshots && newP.has_screenshots) {
-                                oldP.has_screenshots = true;
-                                // Find the card in the DOM and replace it
-                                const cards = document.querySelectorAll('.portfolio-card');
-                                cards.forEach(card => {
-                                    if (card.dataset.name === newP.name.toLowerCase()) {
-                                        const newCard = createCard(newP);
-                                        card.replaceWith(newCard);
-                                    }
-                                });
-                            }
-                        });
-                        
-                        if (newData.portfolios.filter(p => p.has_screenshots).length >= newData.portfolios.length) {
-                            clearInterval(intervalId);
-                        }
-                    }
-                } catch(e) {}
-            }, 10000);
-        }
-
         // Reset filter controls to defaults on fresh load
         searchInput.value = '';
         roleFilter.value = 'all';
@@ -299,27 +263,6 @@ themeToggle.addEventListener('click', () => {
                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
            </svg>`;
 });
-// ─── Scraper Progress ────────────────────────────
-function updateProgressBar(portfoliosList) {
-    const scrapedCount = portfoliosList.filter(p => p.has_screenshots).length;
-    const totalCount = portfoliosList.length;
-    const percentage = Math.round((scrapedCount / totalCount) * 100) || 0;
-    
-    const progressContainer = document.getElementById('scraper-progress-container');
-    const progressText = document.getElementById('progress-text');
-    const progressBarFill = document.getElementById('progress-bar-fill');
-    
-    if (progressContainer) {
-        if (scrapedCount < totalCount) {
-            progressContainer.style.display = 'block';
-            progressText.innerText = `${scrapedCount} / ${totalCount} (${percentage}%)`;
-            progressBarFill.style.width = `${percentage}%`;
-        } else {
-            progressContainer.style.display = 'none';
-        }
-    }
-}
-
 // ─── Boot ────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', loadPortfolios);
 
