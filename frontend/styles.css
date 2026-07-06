@@ -375,6 +375,7 @@ body {
     cursor: pointer;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
     transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
@@ -396,6 +397,8 @@ body {
     padding: 10px 16px;
     border-bottom: var(--border-thick);
     background: var(--bg-secondary);
+    gap: 12px;
+    overflow: hidden;
 }
 
 .card-title {
@@ -406,6 +409,8 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
 }
 
 .role-badge {
@@ -417,6 +422,11 @@ body {
     padding: 4px 8px;
     text-transform: uppercase;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 55%;
 }
 
 /* Card Image Window */

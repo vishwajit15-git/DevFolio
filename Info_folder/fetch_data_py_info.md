@@ -4,12 +4,14 @@
 `backend/fetch_data.py`
 
 ## Purpose
-Downloads the `feed.json` file from the `emmabostian/developer-portfolios` GitHub repository and parses it to extract portfolio entries. Each entry contains a developer name, portfolio URL, and a `tagline` field that holds the job role (e.g., `"Software Engineer"`, `"AI Engineer"`).
+Downloads the `feed.json` file from the `emmabostian/developer-portfolios` GitHub repository, filters out excluded portfolios via `excluded_names.py`, and parses the remaining entries to extract portfolio data. Each entry contains a developer name, portfolio URL, and a `tagline` field that holds the job role.
 
 ## Dependencies
 - `requests` — HTTP library to download `feed.json` from GitHub's raw content URL
+- `excluded_names.EXCLUDED_NAMES` — Set of 149 developer names to exclude from the dataset
 
 ## Connection to Other Files
+- **Imports from** `excluded_names.py` → uses `EXCLUDED_NAMES` set to filter out unwanted portfolios
 - **Consumed by** `main.py` → the `/api/portfolios` endpoint calls `get_portfolio_data()`
 - **Data feeds into** `screenshot_service.py` → provides the list of portfolio URLs to screenshot
 
@@ -22,106 +24,40 @@ Downloads the `feed.json` file from the `emmabostian/developer-portfolios` GitHu
 ## Functions
 
 ### `get_portfolio_data() → list[dict]`
-Fetches `feed.json`, parses each entry, and returns a list of cleaned portfolio dictionaries.
+Fetches `feed.json`, filters out excluded names, parses each remaining entry, and returns a capped list of cleaned portfolio dictionaries.
 
-**Returns:** A list of dicts, each containing:
+**Returns:** A list of dicts (max 1,157), each containing:
 - `name` (str) — Developer name
 - `role` (str) — Job title from the `tagline` field, defaults to `"Developer"` if absent
 - `url` (str) — Portfolio URL
 
+**Filtering Pipeline:**
+1. Fetch all ~1,806 entries from GitHub
+2. Skip any entry whose `name` is in `EXCLUDED_NAMES` (149 entries)
+3. Cap the result at 1,157 entries (previously 1,306, reduced after bulk deletion)
+
 **Error handling:** Catches `requests.exceptions.RequestException`, logs the error, and returns an empty list.
 
-## Line-by-Line Explanation
+## Key Implementation Details
 
-```text
-# Lines 1-5: Module docstring
-"""
-DevFolio Backend - Data Fetcher
-Downloads and parses the feed.json file from the emmabostian/developer-portfolios repository.
-Extracts developer names, portfolio URLs, and tagline-based job roles.
-"""
-```
-- **Lines 1–5:** Module-level docstring. Updated to reflect that roles come from the `tagline` field, not bracketed text.
+### Excluded Names Import
+Uses a try/except chain to import `EXCLUDED_NAMES` from either `backend.excluded_names` (when run via `uvicorn backend.main:app`) or `excluded_names` (when run directly). Falls back to an empty set if neither import succeeds.
 
-```text
-# Line 7: Import
-import requests
-```
-- **Line 7:** Imports `requests` for HTTP calls. Note: `re` (regex) was removed — the actual `feed.json` stores roles in a dedicated `tagline` field, so regex parsing is unnecessary.
-
-```text
-# Lines 9-10: Constant
-FEED_URL = "https://raw.githubusercontent.com/emmabostian/developer-portfolios/master/feed.json"
-```
-- **Lines 9–10:** Module-level constant for the raw GitHub URL. Points to the `master` branch of the source repository.
-
-```text
-# Lines 13-23: Function definition & docstring
-def get_portfolio_data():
-    """..."""
-```
-- **Line 13:** Main function — no parameters needed since the URL is a constant.
-- **Lines 14–22:** Docstring explaining return format and defaults.
-
-```text
-# Lines 24-26: HTTP request
+```python
+try:
+    from backend.excluded_names import EXCLUDED_NAMES
+except ImportError:
     try:
-        response = requests.get(FEED_URL, timeout=15)
-        response.raise_for_status()
+        from excluded_names import EXCLUDED_NAMES
+    except ImportError:
+        EXCLUDED_NAMES = set()
 ```
-- **Line 24:** `try` block wraps all network operations.
-- **Line 25:** GET request with 15-second timeout to prevent indefinite hanging.
-- **Line 26:** `raise_for_status()` throws `HTTPError` for 4xx/5xx responses.
 
-```text
-# Line 27: Parse JSON
-        raw_data = response.json()
+### Dataset Capping
+The dataset is capped at 1,157 entries to optimize scraper performance and exclude heavy/dead portfolio links:
+```python
+return cleaned_portfolios[:1157]
 ```
-- **Line 27:** Parses the response body into a Python list of dictionaries.
-
-```text
-# Line 29: Initialize output
-        cleaned_portfolios = []
-```
-- **Line 29:** Empty accumulator list for processed entries.
-
-```text
-# Lines 31-34: Extract fields from each entry
-        for item in raw_data:
-            name = item.get("name", "Unknown")
-            portfolio_url = item.get("url", "")
-            role = item.get("tagline", "Developer")
-```
-- **Line 31:** Loops over each portfolio entry in the JSON array.
-- **Line 32:** Extracts `name`, defaults to `"Unknown"` if missing.
-- **Line 33:** Extracts `url`, named `portfolio_url` to avoid variable shadowing.
-- **Line 34:** Extracts `tagline` as the role — this is the actual field the repo uses for job titles. Defaults to `"Developer"` if absent.
-
-```text
-# Lines 36-40: Build output entry
-            cleaned_portfolios.append({
-                "name": name,
-                "role": role,
-                "url": portfolio_url,
-            })
-```
-- **Lines 36–40:** Creates a structured dictionary and appends to the output list.
-
-```text
-# Line 42: Return
-        return cleaned_portfolios
-```
-- **Line 42:** Returns the full list of 1,806 parsed portfolios.
-
-```text
-# Lines 44-46: Error handling
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching data: {e}")
-        return []
-```
-- **Line 44:** Catches all `requests` exceptions (timeouts, connection errors, HTTP errors).
-- **Line 45:** Logs the error to console.
-- **Line 46:** Returns empty list so the API gracefully degrades with `count: 0`.
 
 ---
-*Last Updated: 2026-07-02 (Day 2 — Replaced regex parsing with tagline field extraction)*
+*Last Updated: 2026-07-06 (Added excluded names filtering, reduced dataset cap from 1,306 to 1,157)*

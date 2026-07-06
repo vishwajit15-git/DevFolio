@@ -62,6 +62,10 @@ async function loadPortfolios() {
             }, 10000);
         }
 
+        // Reset filter controls to defaults on fresh load
+        searchInput.value = '';
+        roleFilter.value = 'all';
+
         // Populate the role dropdown with unique roles
         populateRoleFilter(allPortfolios);
 
@@ -141,8 +145,8 @@ function createCard(portfolio) {
                 <div class="control-dot"></div>
                 <div class="control-dot"></div>
             </div>
-            <h3 class="card-title">${escapeHtml(portfolio.name)}</h3>
-            <span class="role-badge">${escapeHtml(portfolio.role || 'Developer')}</span>
+            <h3 class="card-title" title="${escapeHtml(portfolio.name)}">${escapeHtml(portfolio.name)}</h3>
+            <span class="role-badge" title="${escapeHtml(portfolio.role || 'Developer')}">${escapeHtml(portfolio.role || 'Developer')}</span>
         </div>
         <div class="card-image-window">
             ${imageContent}
@@ -168,12 +172,68 @@ function createCard(portfolio) {
 }
 
 
+// ─── Role Normalization (Curated Allowlist) ──────
+// Only these categories appear in the dropdown. Everything else maps to null and is excluded.
+const ROLE_RULES = [
+    { label: 'AI/ML Engineer',          test: s => /\b(ai|ml|artificial intelligence|machine learning|gen.?ai|generative ai|nlp|llm|deep learning|computer vision)\b/.test(s) || s.includes('ai-') || s.includes('ai/ml') },
+    { label: 'Frontend Developer',      test: s => /\b(frontend|front.?end|react|vue|angular|nextjs|next\.js|svelte|astro)\b/.test(s) },
+    { label: 'Backend Developer',       test: s => /\b(backend|back.?end|node\.?js|express|django|flask|fastapi|spring.?boot|laravel|nestjs|php|golang|ruby on rails)\b/.test(s) },
+    { label: 'Full Stack Developer',    test: s => /\b(full.?stack|fullstack|mern|mean|pern)\b/.test(s) },
+    { label: 'Mobile Developer',        test: s => /\b(ios|android|mobile|flutter|react native|swift|kotlin|app dev)\b/.test(s) },
+    { label: 'UI/UX Designer',          test: s => /\b(ui|ux|ui\/ux|ux\/ui|product design|graphic design|web design)\b/.test(s) },
+    { label: 'DevOps / Cloud',          test: s => /\b(devops|cloud|aws|azure|gcp|docker|kubernetes|ci\/cd|sre|infrastructure|platform engineer)\b/.test(s) },
+    { label: 'Data Science',            test: s => /\b(data sci|data engineer|data analyst|big data|pandas|numpy|matplotlib)\b/.test(s) },
+    { label: 'Cyber Security',          test: s => /\b(cyber.?security|security|pentester|osint|devsecops|forensics)\b/.test(s) },
+    { label: 'Web3 / Blockchain',       test: s => /\b(web3|blockchain|crypto|solidity|smart contract|ethereum)\b/.test(s) },
+    { label: 'Game Developer',          test: s => /\b(game dev|game developer|unity|unreal|godot)\b/.test(s) },
+    { label: 'Embedded / IoT',          test: s => /\b(embedded|iot|firmware|robotics|arduino|raspberry)\b/.test(s) },
+    { label: 'Software Engineer',       test: s => /\b(software engineer|software developer|software development|swe|sde)\b/.test(s) },
+    { label: 'Web Developer',           test: s => /\b(web dev|web developer|web programmer|webflow|wordpress|shopify)\b/.test(s) },
+    { label: '.NET Developer',          test: s => /\b(\.net|dotnet|c#|blazor)\b/.test(s) },
+    { label: 'Python Developer',        test: s => /\b(python)\b/.test(s) },
+    { label: 'Java Developer',          test: s => /\b(java|springboot|spring boot)\b/.test(s) && !/javascript/.test(s) },
+    { label: 'Developer',               test: s => /\b(developer|programmer|coder|engineer)\b/.test(s) },
+    { label: 'Freelancer',              test: s => /\b(freelanc)\b/.test(s) },
+    { label: 'Open Source Contributor',  test: s => /\b(open source|contributor)\b/.test(s) },
+    { label: 'Tech Lead / Manager',     test: s => /\b(tech lead|technical lead|lead engineer|engineering leader|director|staff engineer|senior|architect|manager|founder|ceo|cto)\b/.test(s) },
+    { label: 'Student',                 test: s => /\b(student|undergrad|intern|learning|aspiring)\b/.test(s) },
+    { label: 'Researcher',              test: s => /\b(researcher|research)\b/.test(s) },
+    { label: 'QA / Testing',            test: s => /\b(qa|testing|test engineer|automation)\b/.test(s) },
+    { label: 'Digital Creator',         test: s => /\b(digital creator|content creator|digital market|photographer|creator|blogger)\b/.test(s) },
+];
+
+function normalizeRole(role) {
+    if (!role) return null;
+    let lower = role.toLowerCase().trim().replace(/[.,;:!?]$/, '');
+    if (lower.length < 2) return null;
+
+    for (const rule of ROLE_RULES) {
+        if (rule.test(lower)) return rule.label;
+    }
+    return null; // Not a recognized role category
+}
+
 // ─── Role Filter Dropdown ────────────────────────
+function extractRoles(roleString) {
+    if (!roleString) return ['Developer'];
+
+    // Remove parentheses and their contents
+    const noParens = roleString.replace(/\s*\(.*?\)\s*/g, '');
+
+    // Split by |, &, •, , OR / and + surrounded by spaces
+    const splitRegex = /\s*[|&•,]\s*|\s+[\/+]\s+/;
+    const roles = noParens.split(splitRegex)
+        .map(r => normalizeRole(r))
+        .filter(r => r !== null);
+
+    return roles.length > 0 ? roles : ['Developer'];
+}
+
 function populateRoleFilter(portfolios) {
     const roles = new Set();
     portfolios.forEach(p => {
-        const role = (p.role || 'Developer').trim();
-        if (role && role.length < 40) roles.add(role);
+        const extracted = extractRoles(p.role);
+        extracted.forEach(r => roles.add(r));
     });
 
     // Sort alphabetically
@@ -181,7 +241,7 @@ function populateRoleFilter(portfolios) {
 
     sorted.forEach(role => {
         const option = document.createElement('option');
-        option.value = role.toLowerCase();
+        option.value = role;
         option.textContent = role;
         roleFilter.appendChild(option);
     });
@@ -195,7 +255,10 @@ function applyFilters() {
 
     const filtered = allPortfolios.filter(p => {
         const nameMatch = p.name.toLowerCase().includes(searchTerm);
-        const roleMatch = selectedRole === 'all' || (p.role || 'Developer').toLowerCase() === selectedRole;
+        
+        const extractedRoles = extractRoles(p.role);
+        const roleMatch = selectedRole === 'all' || extractedRoles.includes(selectedRole);
+        
         return nameMatch && roleMatch;
     });
 

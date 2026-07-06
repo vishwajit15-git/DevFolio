@@ -4,81 +4,41 @@
 `backend/main.py`
 
 ## Purpose
-The main FastAPI application server. Creates a REST API with a single endpoint (`/api/portfolios`) that calls the data fetcher and returns structured portfolio data as JSON. Includes CORS middleware so the frontend can make cross-origin requests.
+The main FastAPI application server. Creates a REST API with endpoints for portfolio data and screenshot serving. Mounts the frontend as a static file directory and integrates with MongoDB Atlas GridFS for persistent image storage.
 
 ## Dependencies
 - `fastapi` — Web framework for building the REST API
 - `fastapi.middleware.cors.CORSMiddleware` — Handles Cross-Origin Resource Sharing headers
-- `backend.fetch_data.get_portfolio_data` — Local import (uses package prefix since uvicorn runs from project root)
+- `fastapi.staticfiles.StaticFiles` — Serves the frontend static files
+- `fastapi.responses.StreamingResponse` — Streams screenshot images from MongoDB GridFS
+- `backend.fetch_data.get_portfolio_data` — Local import for portfolio data fetching
+- `backend.mongo_client` — MongoDB GridFS client for image storage/retrieval
 
 ## Connection to Other Files
-- **Imports from** `fetch_data.py` → calls `get_portfolio_data()` to get parsed portfolio data
-- **Will import from** `screenshot_service.py` → future endpoints for serving cached screenshots
-- **Consumed by** `frontend/app.js` → frontend fetches from `/api/portfolios`
+- **Imports from** `fetch_data.py` → calls `get_portfolio_data()` to get parsed & filtered portfolio data
+- **Imports from** `mongo_client.py` → uses GridFS bucket to serve screenshot images
+- **Consumed by** `frontend/app.js` → frontend fetches from `/api/portfolios` and `/api/screenshots/`
 
 ## API Endpoints
 
 | Method | Path | Response | Description |
 |---|---|---|---|
-| `GET` | `/api/portfolios` | `{ count: int, portfolios: list }` | Returns all 1,806 parsed portfolios with names, roles, and URLs |
+| `GET` | `/api/portfolios` | `{ count: int, portfolios: list }` | Returns all 1,157 filtered portfolios with names, roles, URLs, and `has_screenshots` status |
+| `GET` | `/api/screenshots/{filename}` | Binary image stream | Serves a screenshot image from MongoDB GridFS (or local fallback) |
+| `GET` | `/` | HTML | Serves the frontend `index.html` |
+| `GET` | `/static/*` | Static files | Serves CSS, JS, and asset files from the `frontend/` directory |
 
-## Line-by-Line Explanation
+## Key Implementation Details
 
-```text
-# Lines 1-4: Module docstring
-"""
-DevFolio Backend - Main Server
-FastAPI application serving portfolio data and cached screenshots to the frontend.
-"""
-```
-- **Lines 1–4:** Module-level docstring describing the server's role.
+### Screenshot Serving Priority
+1. First checks MongoDB GridFS for the requested filename
+2. Falls back to local `screenshots/` directory if MongoDB is unavailable
+3. Returns 404 if the file doesn't exist in either location
 
-```text
-# Lines 6-8: Imports
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from backend.fetch_data import get_portfolio_data
-```
-- **Line 6:** Imports the `FastAPI` class — the core web framework.
-- **Line 7:** Imports `CORSMiddleware` to allow cross-origin requests from the frontend.
-- **Line 8:** Imports `get_portfolio_data` using the `backend.` package prefix. This is required because `uvicorn backend.main:app` runs from the project root, so Python resolves imports relative to the root — not relative to `backend/`.
-
-```text
-# Line 10: App initialization
-app = FastAPI(title="DevFolio API", description="Serves developer portfolio data for the DevFolio gallery.")
-```
-- **Line 10:** Creates the FastAPI app instance. The `title` and `description` appear in the auto-generated Swagger docs at `/docs`.
-
-```text
-# Lines 12-17: CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
-- **Line 13:** Registers CORS middleware on the app.
-- **Line 14:** `allow_origins=["*"]` — permits requests from any origin (for development).
-- **Line 15:** `allow_methods=["*"]` — allows all HTTP methods.
-- **Line 16:** `allow_headers=["*"]` — allows all request headers.
-
-```text
-# Lines 20-28: Portfolio endpoint
-@app.get("/api/portfolios")
-def read_portfolios():
-    """
-    Returns all developer portfolios with cleaned names and parsed roles.
-    Response format: { count: int, portfolios: list[dict] }
-    """
-    data = get_portfolio_data()
-    return {"count": len(data), "portfolios": data}
-```
-- **Line 20:** `@app.get` decorator registers this function for `GET /api/portfolios`.
-- **Line 21:** Handler function name — used in Swagger docs.
-- **Lines 22–25:** Docstring describing response format.
-- **Line 26:** Calls `get_portfolio_data()` to fetch and parse all 1,806 portfolios.
-- **Line 27:** Returns a dict with `count` and `portfolios`. FastAPI auto-serializes to JSON.
+### Portfolio Data Enrichment
+The `/api/portfolios` endpoint enriches each portfolio entry with:
+- `safe_name` — URL-safe filename derived from the developer's name
+- `has_screenshots` — Boolean indicating if screenshot files exist (checked in both MongoDB and local storage)
 
 ---
-*Last Updated: 2026-07-02 (Day 2 — Full implementation, fixed import path to use backend. prefix)*
+*Last Updated: 2026-07-06 (Updated endpoint docs, added screenshot serving and static file mounting)*
