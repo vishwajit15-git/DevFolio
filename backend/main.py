@@ -84,7 +84,7 @@ async def get_screenshot(filename: str):
     try:
         grid_out = await fs.open_download_stream_by_name(filename)
         data = await grid_out.read()
-        return StreamingResponse(io.BytesIO(data), media_type="image/png")
+        return StreamingResponse(io.BytesIO(data), media_type="image/jpeg")
     except Exception:
         raise HTTPException(status_code=404, detail="Screenshot not found in MongoDB")
 
